@@ -46,9 +46,10 @@ def write_queue(queue, output):
     """run the write queue"""
     while True:
         record = queue.get()
-        log.info("Got result: %s", record)
-        content = json.dumps(content)
-        output.write(content)
+        log.info("%s %s", '...' if record['partial'] else '>>>', record['text'])
+        content = json.dumps(record)
+        # output.write(content)
+        # output.write('\n')
 
 def transcript_to_json(transcript, partial=False):
     struct = {
@@ -107,7 +108,7 @@ def run_recognition(model, input, output, read_size=512, rate=16000):
         else:
             length += written 
             stream.feedAudioContent(current_content[:written])
-            log.info("Have read %s", length)
+            # log.info("Have read %s", length)
             if length > max_length:
                 log.info("Length exceeded, next stream")
                 metadata = stream.finishStreamWithMetadata()
