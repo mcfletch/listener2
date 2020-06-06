@@ -21,7 +21,7 @@ RUN chown ${UID} /src/working
 # Download the deepspeech released models to the models/ directory
 ADD model/deepspeech-0.7* /src/models/
 # Pull in current DeepSpeech release
-RUN pip3 install tensorflow-gpu 'DeepSpeech>=0.7'
+RUN pip3 install tensorflow-gpu 'DeepSpeech>=0.7' ipython ipdb
 
 # Create user with username and password `deepspeech`
 RUN useradd \
