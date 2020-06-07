@@ -93,6 +93,26 @@ def transcript_to_json(transcript, partial=False):
     struct['text'] = ''.join(text)
     return struct
 
+def trim_metadata(metadata, words):
+    for transcript in metadata['transcripts']:
+        trim_transcript(transcript,words)
+    metadata['partial'] = False
+    return metadata
+
+def trim_transcript(transcript,words):
+    """Trim the transcript to just include the given words"""
+    rest_words = transcript['words'][len(words):]
+    rest_starts = transcript['word_starts'][len(words):]
+    if rest_words:
+        del transcript['words'][len(words):]
+        del transcript['word_starts'][len(words):]
+        transcript['starts'] = [
+            s for s in transcript['starts']
+            if s < rest_starts[0]
+        ]
+        del transcript['tokens'][len(transcript['starts']):]
+
+
 class RingBuffer(object):
     """Crude numpy-backed ringbuffer"""
     def __init__(self, duration=30, rate=16000):
@@ -115,6 +135,12 @@ class RingBuffer(object):
         """
         samples = int(seconds * 16000)
         self.start = (self.start + samples)%self.size 
+    def keep_last(self, samples):
+        """Keep the last N samples discarding the rest"""
+        self.start = self.write_head-samples
+        if self.start < 0:
+            self.start = self.size - self.start
+        return self.start
     def itercurrent(self):
         """Iterate over all samples in the current set
         
@@ -152,7 +178,26 @@ class TranscriptionHistory(object):
                     common = min((common,index))
                     break 
         return words[:common],starts[:common]
+    def next_start(self, common_prefix):
+        """Given common prefix, is there anything else in our history that has a start?"""
+        first_next = None
+        for metadata in self.history:
+            for trans in metadata['transcripts']:
+                rest_starts = trans['word_starts'][len(common_prefix):]
+                if not rest_starts:
+                    continue
+                if first_next:
+                    first_next = min((first_next,rest_starts[0]))
+                else:
+                    first_next = rest_starts[0]
+        return first_next
 
+# How long of leading silence causes it to be discarded?
+SILENCE_DISCARD = 3.0
+# No-change-commit period, i.e. if we see more than this
+# number of same-prefix partials, commit the partial and
+# truncate to end of the utterance...
+CHANGE_COMMIT_COUNT = 4
 
 
 def run_recognition(
@@ -190,13 +235,13 @@ def run_recognition(
     t.start()
     stream = model.createStream()
     history = TranscriptionHistory()
-    def finish():
+    def finish(metadata=None):
         if length:
-            metadata = stream.finishStreamWithMetadata(5)
-            trans = metadata_to_json(metadata, True)
-            for tran in trans['transcripts']:
+            if metadata is None:
+                metadata = metadata_to_json(stream.finishStreamWithMetadata(5),True)
+            for tran in metadata['transcripts']:
                 log.info(">>> %0.02f %s", tran['confidence'],tran['words'])
-            out_queue.put(trans)
+            out_queue.put(metadata)
 
     while True:
         buffer = ring.read_in(input,read_size)
@@ -213,30 +258,47 @@ def run_recognition(
             if (length - last_decode) > rate // max_decode_rate:
                 metadata = metadata_to_json(stream.intermediateDecodeWithMetadata())
                 history.append(metadata)
-                log.info("... %s",' '.join(metadata['transcripts'][0]['words']))
+                words = metadata['transcripts'][0]['words']
+                log.info("... %s",' '.join(words))
                 last_decode = length
-                if length > max_length:
-                    # try to find a common subset and truncate prefix...
-                    words,starts = history.common_prefix()
-                    if len(words)>1:
-                        out_queue.put({
-                            'transcripts': {
-                                'words': words[:-1], # we pass the first word back again...
-                                'starts': starts[:-1],
-                            },
-                        })
-                        log.info('<<< %s', ' '.join(words))
+                # Simple case where nothing is detected for a long time...
+                if (not words) and (length > rate * SILENCE_DISCARD):
+                    log.debug('... discarding silence')
+                    stream.freeStream()
+                    stream = model.createStream()
+                    ring.keep_last(int(rate * SILENCE_DISCARD /2))
+                    for block in ring.itercurrent():
+                        log.info("Re-feeding %s samples %ss",len(block),len(block)/rate)
+                        stream.feedAudioContent(block)
+                        length += len(block)
 
-                        ring.drop_early(starts[-1])
-                        log.info('Dropped %0.2fs from start, new length: %s',starts[-1],length)
-                        history.reset()
+                    length = last_decode = 0
+                    history.reset()
+                    continue
+                # Okay, so have we had the same recognition for a while, if so, commit it...
+                words,starts = history.common_prefix(CHANGE_COMMIT_COUNT)
+                if len(words)>1:
+                    next = history.next_start(words)
+                    if not next:
+                        log.debug("Nothing detected after text, so reporting as final")
+                        finish()
                         stream = model.createStream()
-                        length = 0
-                        for block in ring.itercurrent():
-                            log.info("Re-feeding %s samples %ss",len(block),len(block)/rate)
-                            stream.feedAudioContent(block)
-                            length += len(block)
-                        last_decode = length
+                        length = last_decode = 0
+                        history.reset()
+                        continue 
+                    finish(trim_metadata(metadata,words))
+
+                    ring.drop_early(next)
+                    log.info('Dropped %0.2fs from start, new length: %s',next,length)
+
+                    history.reset()
+                    stream = model.createStream()
+                    length = 0
+                    for block in ring.itercurrent():
+                        log.info("Re-feeding %s samples %ss",len(block),len(block)/rate)
+                        stream.feedAudioContent(block)
+                        length += len(block)
+                    last_decode = length
             
 
 def main():
@@ -260,5 +322,8 @@ def main():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
+    )
     main()
