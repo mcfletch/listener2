@@ -2,7 +2,10 @@
 """Host side IBus engine using the Dockerised recogpipe
 
 Note: this daemon is LGPL because IBus is LGPL licensed
-and we're importing the IBus code into the process
+and we're importing the IBus code into the process, though
+I suppose we're using gobject-introspection and the DBus
+to do the communication normally. Still, LGPL is fine
+and makes things consistent.
 """
 import gi
 gi.require_version('IBus','1.0')
@@ -24,11 +27,16 @@ def get_config():
     }
 
 class DeepSpeechEngine(IBus.Engine):
+    """Provides an IBus Input Method Engine using RecogPipe backend
+    
+
+    
+    """
     __gtype_name__ = NAME
     DESCRIPTION = IBus.EngineDesc.new(
         SERVICE_NAME,
         NAME,
-        'DeepSpeech English in Docker',
+        'DeepSpeech English',
         'en',
         'LGPL',
         'Mike C. Fletcher',
@@ -123,7 +131,7 @@ class DeepSpeechEngine(IBus.Engine):
                             while b'\000' in content:
                                 message,content = content.split(b'\000',1)
                                 decoded = json.loads(message)
-                                GObject.idle_add(self.on_decoding_event,decoded)
+                                GLib.idle_add(self.on_decoding_event,decoded)
                             # log.debug("%s bytes remaining",len(content))
                     except Exception as err:
                         log.warning("Crashed during recv, closing...")

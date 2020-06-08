@@ -7,45 +7,14 @@ import webrtcvad
 import threading
 log = logging.getLogger(__name__)
 
-def get_options():
-    import argparse 
-    parser = argparse.ArgumentParser(
-        description = 'Provides an audio sink to which to write buffers to feed into DeepSpeech',
-    )
-    parser.add_argument(
-        '-i','--input',
-        default='/tmp/dspipe/audio',
-    )
-    parser.add_argument(
-        '-o','--output',
-        default='/tmp/dspipe/events',
-    )
-    parser.add_argument(
-        '-m','--model',
-        default = '/src/home/working/model/deepspeech-0.7.1-models.pbmm',
-        help = 'DeepSpeech published model'
-    )
-    parser.add_argument(
-        '-s','--scorer',
-        default = '/src/home/working/model/deepspeech-0.7.0-models.scorer',
-        help = 'DeepSpeect published scorer',
-    )
-    parser.add_argument(
-        '--beam-width',
-        default = None,
-        type = int,
-        help = 'If specified, override the model default beam width',
-    )
-    return parser 
-
-def open_fifo(filename,mode='rb'):
-    """Open fifo for communication"""
-    if not os.path.exists(filename):
-        os.mkfifo(filename)
-    return open(filename,mode)
+# How long of leading silence causes it to be discarded?
+SAMPLE_RATE = 16000
+FRAME_SIZE = (SAMPLE_RATE//1000)*20 # rate of 16000, so 16samples/ms
+SILENCE_FRAMES = 10 # in 20ms frames
 
 
 def metadata_to_json(metadata, partial=False):
+    """Convert DeepSpeech Metadata struct to a json-compatible format"""
     struct = {
         'partial': partial,
         'final': not partial,
@@ -56,6 +25,7 @@ def metadata_to_json(metadata, partial=False):
     return struct 
 
 def transcript_to_json(transcript, partial=False):
+    """Convert DeepSpeect Transcript struct to a json-compatible format"""
     struct = {
         'partial': partial,
         'final': not partial,
@@ -92,7 +62,7 @@ def transcript_to_json(transcript, partial=False):
 
 class RingBuffer(object):
     """Crude numpy-backed ringbuffer"""
-    def __init__(self, duration=30, rate=16000):
+    def __init__(self, duration=30, rate=SAMPLE_RATE):
         self.duration = duration 
         self.rate = rate
         self.size = duration * rate
@@ -105,21 +75,8 @@ class RingBuffer(object):
         written = fh.readinto(target)
         self.write_head = (self.write_head + written) % self.size 
         return target[:written]
-    def drop_early(self, seconds):
-        """Drop buffers from start until seconds
-        
-        Note: does *not* check for write_head overshoot
-        """
-        samples = int(seconds * 16000)
-        self.start = (self.start + samples)%self.size 
-    def keep_last(self, samples):
-        """Keep the last N samples discarding the rest"""
-        self.start = self.write_head-samples
-        if self.start < 0:
-            self.start = self.size - self.start
-        return self.start
     def itercurrent(self):
-        """Iterate over all samples in the current set
+        """Iterate over all samples in the current record
         
         After we truncate from the beginning we have to
         reset the stream with the content written already
@@ -135,19 +92,29 @@ class RingBuffer(object):
         else:
             return self.write_head - self.start
 
-# How long of leading silence causes it to be discarded?
-SILENCE_FRAMES = 10 # in 20ms frames
-FRAME_SIZE = 16*20 # rate of 16000, so 16samples/ms
 
-
-def produce_voice_runs(input,read_frames=2,rate=16000,silence=SILENCE_FRAMES,voice_detect_aggression=3):
+def produce_voice_runs(input,read_frames=2,rate=SAMPLE_RATE,silence=SILENCE_FRAMES,voice_detect_aggression=3):
     """Produce runs of audio with voice detected
     
-    producer -- generate slices of audio to test
-    read_size -- amount of data to read from the producer at a time
-    rate -- sample rate 
+    input -- FIFO (named pipe) or Socket from which to read
+    read_frames -- number of frames to read in on each iteration, this is a 
+                   blocking read, so it needs to be pretty small to keep
+                   latency down
+    rate -- sample rate, 16KHz required for DeepSpeech
     silence -- number of audio frames that constitute a "pause" at which
                we should produce a new utterance
+    
+    Notes:
+
+        * we want to be relatively demanding about the detection of audio
+          as we are working with noisy/messy environments
+        * the start-of-voice event often is preceded by a bit of 
+          lower-than-threshold "silence" which is critical for catching
+          the first word
+        * we are using a static ringbuffer so that the main audio buffer shouldn't
+          wind up being copied
+    
+    yields audio frames in sequence from the input
     """
     vad = webrtcvad.Vad(voice_detect_aggression)
     ring = RingBuffer(rate=rate)
@@ -169,10 +136,16 @@ def produce_voice_runs(input,read_frames=2,rate=16000,silence=SILENCE_FRAMES,voi
             frame = buffer[start:start+FRAME_SIZE]
             if vad.is_speech(frame,rate):
                 if silence_count:
+                    # Update the ring-buffer to tell us where
+                    # the audio started... note: currently there
+                    # is no checking for longer-than-ring-buffer
+                    # duration speeches...
+                    ring.start = ring.write_head
+                    log.debug('<')
                     for last in silence_frames:
-                        log.debug('<')
+                        ring.start -= len(last)
                         yield last
-                log.debug('>')
+                    ring.start = ring.start % ring.size
                 yield frame
                 silence_count = 0
                 silence_frames.clear()
@@ -186,9 +159,8 @@ def produce_voice_runs(input,read_frames=2,rate=16000,silence=SILENCE_FRAMES,voi
                     yield frame 
                     log.debug('? %s', silence_count)
 
-
 def run_recognition(
-    model, input, out_queue, read_size=320, rate=16000,
+    model, input, out_queue, read_size=320, rate=SAMPLE_RATE,
     max_decode_rate=4,
 ):
     """Read fragments from input, write results to output
@@ -212,7 +184,7 @@ def run_recognition(
     for metadata in iter_metadata(model, input=input, rate=rate):
         out_queue.put(metadata)
 
-def iter_metadata(model, input, rate=16000,max_decode_rate=4):
+def iter_metadata(model, input, rate=SAMPLE_RATE,max_decode_rate=4):
     """Iterate over input producing transcriptions with model"""
     stream = model.createStream()
     length = last_decode = 0
@@ -238,6 +210,12 @@ def iter_metadata(model, input, rate=16000,max_decode_rate=4):
                 words = metadata['transcripts'][0]['words']
                 log.info("... %s",' '.join(words))
 
+def open_fifo(filename,mode='rb'):
+    """Open fifo for communication"""
+    if not os.path.exists(filename):
+        os.mkfifo(filename)
+    return open(filename,mode)
+
 def create_output_socket(sockname='/tmp/dspipe/events'):
     if os.path.exists(sockname):
         os.remove(sockname)
@@ -253,27 +231,58 @@ def output_thread(sock,outputs):
         log.info("Got a connection on %s", conn)
         q = queue.Queue()
         outputs.append(q)
-        threading.Thread(target=out_writer,args=(conn,q)).start()
+        threading.Thread(target=out_writer,args=(conn,q,outputs)).start()
 def write_queue(queue, outputs):
     """run the write queue"""
-    # log.info("Copying events to outputs")
     while True:
         record = queue.get()
         encoded = json.dumps(record).encode('utf-8')
-        # log.info('Update %s to %s clients',len(encoded),len(outputs))
         for output in outputs:
             output.put(encoded)
-def out_writer(conn,q):
+def out_writer(conn,q, outputs):
+    """Trivial thread to write events to the client"""
     while True:
         try:
             content = q.get()
-            # log.info('Writing to %s %sB', conn,len(content)+1)
             conn.sendall(content)
             conn.sendall(b'\000')
         except Exception:
             log.exception("Failed during send")
             conn.close()
             break
+    outputs.remove(q)
+
+def get_options():
+    import argparse 
+    parser = argparse.ArgumentParser(
+        description = 'Provides an audio sink to which to write buffers to feed into DeepSpeech',
+    )
+    parser.add_argument(
+        '-i','--input',
+        default='/tmp/dspipe/audio',
+    )
+    parser.add_argument(
+        '-o','--output',
+        default='/tmp/dspipe/events',
+    )
+    parser.add_argument(
+        '-m','--model',
+        default = '/src/home/working/model/deepspeech-0.7.1-models.pbmm',
+        help = 'DeepSpeech published model'
+    )
+    parser.add_argument(
+        '-s','--scorer',
+        default = '/src/home/working/model/deepspeech-0.7.0-models.scorer',
+        help = 'DeepSpeect published scorer',
+    )
+    parser.add_argument(
+        '--beam-width',
+        default = None,
+        type = int,
+        help = 'If specified, override the model default beam width',
+    )
+    return parser 
+
 
 def main():
     options = get_options().parse_args()
