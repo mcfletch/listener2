@@ -1,0 +1,13 @@
+include README.md
+include docker/Dockerfile
+include dependencies.txt
+include ffmpeg*.sh
+
+recursive-include tests *
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+
+exclude model/deepspeech*
+
+recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif
+exclude samples/*.wav
