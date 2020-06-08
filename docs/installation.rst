@@ -5,47 +5,27 @@ Installation
 ============
 
 
-Stable release
---------------
+Get the source code::
 
-To install RecogPipe, run this command in your terminal:
+    git clone https://github.com/mcfletch/deepspeech-docker.git
+    cd deepspeech-docker
 
-.. code-block:: console
+Start the daemon in a docker container::
 
-    $ pip install recogpipe
+    ./recogpipe/dockersetup.py
+    # when docker container is started...
+    ./recogpipe/daemon.py
 
-This is the preferred method to install RecogPipe, as it will always install the most recent stable release.
+Feed some data into the daemon from your microphone::
 
-If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-you through the process.
+    ffmpeg-audio.sh 
 
-.. _pip: https://pip.pypa.io
-.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
+Feed some data into the daemon from a wav file::
 
+    ffmpeg-sample.sh path/to/your/file.wav
 
-From sources
-------------
+Running the IBus daemon on your desktop (not in the docker container)::
 
-The sources for RecogPipe can be downloaded from the `Github repo`_.
+    apt install $(cat dependencies.txt)
+    ./recogpipe/ibusengine.py
 
-You can either clone the public repository:
-
-.. code-block:: console
-
-    $ git clone git://github.com/mcfletch/recogpipe
-
-Or download the `tarball`_:
-
-.. code-block:: console
-
-    $ curl -OJL https://github.com/mcfletch/recogpipe/tarball/master
-
-Once you have a copy of the source, you can install it with:
-
-.. code-block:: console
-
-    $ python setup.py install
-
-
-.. _Github repo: https://github.com/mcfletch/recogpipe
-.. _tarball: https://github.com/mcfletch/recogpipe/tarball/master
