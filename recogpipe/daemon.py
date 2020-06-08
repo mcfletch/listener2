@@ -259,20 +259,20 @@ def get_options():
     )
     parser.add_argument(
         '-i','--input',
-        default='/tmp/dspipe/audio',
+        default='/src/run/audio',
     )
     parser.add_argument(
         '-o','--output',
-        default='/tmp/dspipe/events',
+        default='/src/run/events',
     )
     parser.add_argument(
         '-m','--model',
-        default = '/src/home/working/model/deepspeech-0.7.1-models.pbmm',
+        default = '/src/model/deepspeech-%s-models.pbmm'%os.environ.get('DEEPSPEECH_VERSION','0.7.3'),
         help = 'DeepSpeech published model'
     )
     parser.add_argument(
         '-s','--scorer',
-        default = '/src/home/working/model/deepspeech-0.7.0-models.scorer',
+        default = '/src/model/deepspeech-%s-models.scorer'%os.environ.get('DEEPSPEECH_VERSION','0.7.3'),
         help = 'DeepSpeect published scorer',
     )
     parser.add_argument(
