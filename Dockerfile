@@ -32,4 +32,7 @@ RUN useradd \
     -p '$6$m6HrZ49I.nlELRt2$u7acJKMqz2NqAE8cmv848KpJeCbZk4qX0F3s9imBVVikidGW6Ssced8bJPbyPXb3g/gZ6/CPbttsqjSBuVyoE/' \
     deepspeech
 RUN chown -R deepspeech /src/
+RUN pip3 install webrtcvad
 WORKDIR /src/home
+
+CMD ["/src/home/working/recogpipe.py"]

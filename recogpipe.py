@@ -1,7 +1,9 @@
 #! /usr/bin/env python3
 from deepspeech import Model, version
-import logging, os, sys, select, json, socket, queue
+import logging, os, sys, select, json, socket, queue, collections
 import numpy as np
+import webrtcvad
+
 import threading
 log = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ def get_options():
     )
     parser.add_argument(
         '-o','--output',
-        default=''
+        default='/tmp/dspipe/events',
     )
     parser.add_argument(
         '-m','--model',
@@ -42,18 +44,11 @@ def open_fifo(filename,mode='rb'):
         os.mkfifo(filename)
     return open(filename,mode)
 
-def write_queue(queue, output):
-    """run the write queue"""
-    while True:
-        record = queue.get()
-        # log.info("%s %s", '...' if record['partial'] else '>>>', record['text'])
-        content = json.dumps(record)
-        # output.write(content)
-        # output.write('\n')
 
 def metadata_to_json(metadata, partial=False):
     struct = {
         'partial': partial,
+        'final': not partial,
         'transcripts': [],
     }
     for transcript in metadata.transcripts:
@@ -63,6 +58,7 @@ def metadata_to_json(metadata, partial=False):
 def transcript_to_json(transcript, partial=False):
     struct = {
         'partial': partial,
+        'final': not partial,
         'tokens': [],
         'starts': [],
         'words': [],
@@ -92,25 +88,6 @@ def transcript_to_json(transcript, partial=False):
         struct['words'].append(''.join(word))
     struct['text'] = ''.join(text)
     return struct
-
-def trim_metadata(metadata, words):
-    for transcript in metadata['transcripts']:
-        trim_transcript(transcript,words)
-    metadata['partial'] = False
-    return metadata
-
-def trim_transcript(transcript,words):
-    """Trim the transcript to just include the given words"""
-    rest_words = transcript['words'][len(words):]
-    rest_starts = transcript['word_starts'][len(words):]
-    if rest_words:
-        del transcript['words'][len(words):]
-        del transcript['word_starts'][len(words):]
-        transcript['starts'] = [
-            s for s in transcript['starts']
-            if s < rest_starts[0]
-        ]
-        del transcript['tokens'][len(transcript['starts']):]
 
 
 class RingBuffer(object):
@@ -158,50 +135,60 @@ class RingBuffer(object):
         else:
             return self.write_head - self.start
 
-class TranscriptionHistory(object):
-    def __init__(self):
-        self.history = []
-    def append(self, transcriptions):
-        """Record set of (partial) transcriptions finding stable prefix"""
-        self.history.append(transcriptions)
-    def reset(self):
-        del self.history[:]
-    def common_prefix(self, min_count = 3):
-        """Report common prefix set with minimum number of common agreements"""
-        words = self.history[-1]['transcripts'][0]['words']
-        starts = self.history[-1]['transcripts'][0]['word_starts']
-        common = len(words)
-        for metadata in self.history[-2:-5:-1]:
-            otherwords = metadata['transcripts'][0]['words']
-            for index,(test,other) in enumerate(zip(words,otherwords)):
-                if test != other:
-                    common = min((common,index))
-                    break 
-        return words[:common],starts[:common]
-    def next_start(self, common_prefix):
-        """Given common prefix, is there anything else in our history that has a start?"""
-        first_next = None
-        for metadata in self.history:
-            for trans in metadata['transcripts']:
-                rest_starts = trans['word_starts'][len(common_prefix):]
-                if not rest_starts:
-                    continue
-                if first_next:
-                    first_next = min((first_next,rest_starts[0]))
-                else:
-                    first_next = rest_starts[0]
-        return first_next
-
 # How long of leading silence causes it to be discarded?
-SILENCE_DISCARD = 3.0
-# No-change-commit period, i.e. if we see more than this
-# number of same-prefix partials, commit the partial and
-# truncate to end of the utterance...
-CHANGE_COMMIT_COUNT = 4
+SILENCE_FRAMES = 10 # in 20ms frames
+FRAME_SIZE = 16*20 # rate of 16000, so 16samples/ms
+
+
+def produce_voice_runs(input,read_frames=2,rate=16000,silence=SILENCE_FRAMES,voice_detect_aggression=3):
+    """Produce runs of audio with voice detected
+    
+    producer -- generate slices of audio to test
+    read_size -- amount of data to read from the producer at a time
+    rate -- sample rate 
+    silence -- number of audio frames that constitute a "pause" at which
+               we should produce a new utterance
+    """
+    vad = webrtcvad.Vad(voice_detect_aggression)
+    ring = RingBuffer(rate=rate)
+    current_utterance = []
+
+    silence_count = 0
+    read_size = read_frames * FRAME_SIZE
+    # set of frames that were not considered speech
+    # but that we might need to recognise the first
+    # word of an utterance, here (in 20ms frames)
+    silence_frames = collections.deque([],10)
+    while True:
+        buffer = ring.read_in(input,read_size)
+        if not len(buffer):
+            log.debug("Input disconnected")
+            yield None
+            silence_count = 0
+        for start in range(0,len(buffer)-1,FRAME_SIZE):
+            frame = buffer[start:start+FRAME_SIZE]
+            if vad.is_speech(frame,rate):
+                if silence_count:
+                    for last in silence_frames:
+                        log.debug('<')
+                        yield last
+                log.debug('>')
+                yield frame
+                silence_count = 0
+                silence_frames.clear()
+            else:
+                silence_count += 1
+                silence_frames.append(frame)
+                if silence_count == silence:
+                    log.debug('[]')
+                    yield None
+                elif silence_count < silence:
+                    yield frame 
+                    log.debug('? %s', silence_count)
 
 
 def run_recognition(
-    model, input, output, read_size=1024, rate=16000,
+    model, input, out_queue, read_size=320, rate=16000,
     max_decode_rate=4,
 ):
     """Read fragments from input, write results to output
@@ -222,84 +209,71 @@ def run_recognition(
     last word was the start of the utterance
     """
     # create our ring-buffer structure with 60s of audio
-    ring = RingBuffer(rate=rate)
-    max_length = 6*rate # X second max utterance length...
-    length = 0
-    last_decode = 0
-    transcriptions = [
-        # (start,stop,partial)
-    ]
-    out_queue = queue.Queue()
-    t = threading.Thread(target=write_queue,args=(out_queue,output))
-    t.setDaemon(True)
-    t.start()
+    for metadata in iter_metadata(model, input=input, rate=rate):
+        out_queue.put(metadata)
+
+def iter_metadata(model, input, rate=16000,max_decode_rate=4):
+    """Iterate over input producing transcriptions with model"""
     stream = model.createStream()
-    history = TranscriptionHistory()
-    def finish(metadata=None):
-        if length:
-            if metadata is None:
-                metadata = metadata_to_json(stream.finishStreamWithMetadata(5),True)
-            for tran in metadata['transcripts']:
-                log.info(">>> %0.02f %s", tran['confidence'],tran['words'])
-            out_queue.put(metadata)
-
-    while True:
-        buffer = ring.read_in(input,read_size)
-        written = len(buffer)
-
-        if not written:
-            finish()
-            stream = model.createStream()
-            length = last_decode = 0
-            history.reset()
+    length = last_decode = 0
+    for buffer in produce_voice_runs(
+        input,
+        rate=rate,
+    ):
+        if buffer is None:
+            if length:
+                metadata = metadata_to_json(stream.finishStreamWithMetadata(5),partial=False)
+                for tran in metadata['transcripts']:
+                    log.info(">>> %0.02f %s", tran['confidence'],tran['words'])
+                yield metadata
+                stream = model.createStream()
+                length = last_decode = 0
         else:
-            length += written 
             stream.feedAudioContent(buffer)
+            written = len(buffer)
+            length += written 
             if (length - last_decode) > rate // max_decode_rate:
-                metadata = metadata_to_json(stream.intermediateDecodeWithMetadata())
-                history.append(metadata)
+                metadata = metadata_to_json(stream.intermediateDecodeWithMetadata(),partial=True)
+                yield metadata
                 words = metadata['transcripts'][0]['words']
                 log.info("... %s",' '.join(words))
-                last_decode = length
-                # Simple case where nothing is detected for a long time...
-                if (not words) and (length > rate * SILENCE_DISCARD):
-                    log.debug('... discarding silence')
-                    stream.freeStream()
-                    stream = model.createStream()
-                    ring.keep_last(int(rate * SILENCE_DISCARD /2))
-                    for block in ring.itercurrent():
-                        log.info("Re-feeding %s samples %ss",len(block),len(block)/rate)
-                        stream.feedAudioContent(block)
-                        length += len(block)
 
-                    length = last_decode = 0
-                    history.reset()
-                    continue
-                # Okay, so have we had the same recognition for a while, if so, commit it...
-                words,starts = history.common_prefix(CHANGE_COMMIT_COUNT)
-                if len(words)>1:
-                    next = history.next_start(words)
-                    if not next:
-                        log.debug("Nothing detected after text, so reporting as final")
-                        finish()
-                        stream = model.createStream()
-                        length = last_decode = 0
-                        history.reset()
-                        continue 
-                    finish(trim_metadata(metadata,words))
-
-                    ring.drop_early(next)
-                    log.info('Dropped %0.2fs from start, new length: %s',next,length)
-
-                    history.reset()
-                    stream = model.createStream()
-                    length = 0
-                    for block in ring.itercurrent():
-                        log.info("Re-feeding %s samples %ss",len(block),len(block)/rate)
-                        stream.feedAudioContent(block)
-                        length += len(block)
-                    last_decode = length
-            
+def create_output_socket(sockname='/tmp/dspipe/events'):
+    if os.path.exists(sockname):
+        os.remove(sockname)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(sockname)
+    log.info("Waiting on %s", sockname)
+    return sock
+def output_thread(sock,outputs):
+    log.info("Waiting for connections")
+    sock.listen(1)
+    while True:
+        conn,addr = sock.accept()
+        log.info("Got a connection on %s", conn)
+        q = queue.Queue()
+        outputs.append(q)
+        threading.Thread(target=out_writer,args=(conn,q)).start()
+def write_queue(queue, outputs):
+    """run the write queue"""
+    # log.info("Copying events to outputs")
+    while True:
+        record = queue.get()
+        encoded = json.dumps(record).encode('utf-8')
+        # log.info('Update %s to %s clients',len(encoded),len(outputs))
+        for output in outputs:
+            output.put(encoded)
+def out_writer(conn,q):
+    while True:
+        try:
+            content = q.get()
+            # log.info('Writing to %s %sB', conn,len(content)+1)
+            conn.sendall(content)
+            conn.sendall(b'\000')
+        except Exception:
+            log.exception("Failed during send")
+            conn.close()
+            break
 
 def main():
     options = get_options().parse_args()
@@ -312,13 +286,22 @@ def main():
     log.info("Send Raw, Mono, 16KHz, s16le, audio to %s", options.input)
     model.enableExternalScorer(options.scorer)
 
-    input = open_fifo(options.input)
 
-    if options.output:
-        output = open_fifo(options.output,'w')
-    else:
-        output = sys.stderr
-    run_recognition(model, input, output)
+    outputs = []
+    out_queue = queue.Queue()
+    t = threading.Thread(target=write_queue,args=(out_queue,outputs))
+    t.setDaemon(True)
+    t.start()
+
+    sock = create_output_socket(options.output)
+    t = threading.Thread(target=output_thread,args=(sock,outputs))
+    t.setDaemon(True)
+    t.start()
+
+    log.info("Opening fifo (will pause until a source connects)")
+    input = open_fifo(options.input)
+    log.info("Starting recognition")
+    run_recognition(model, input, out_queue)
 
 
 if __name__ == '__main__':
