@@ -54,17 +54,17 @@ class DeepSpeechEngine(IBus.Engine):
     def __init__(self):
         self.config = get_config() 
         self.properties = IBus.PropList()
-        self.properties.append(IBus.Property(
-            key='source',
-            type=IBus.PropType.NORMAL,
-            label='Microphone',
-            tooltip='ALSA device such as hw:0,0 or hw:1,0 (see arecord -l for ids)',
-            visible=True,
-        ))
+        # self.properties.append(IBus.Property(
+        #     key='source',
+        #     type=IBus.PropType.NORMAL,
+        #     label='Microphone',
+        #     tooltip='ALSA device such as hw:0,0 or hw:1,0 (see arecord -l for ids)',
+        #     visible=True,
+        # ))
         self.properties.append(IBus.Property(
             key='listening',
             type=IBus.PropType.TOGGLE,
-            label='Listen',
+            label='DeepSpeech',
             tooltip='Toggle whether the engine is currently listening',
             visible=True,
         ))
@@ -104,8 +104,8 @@ class DeepSpeechEngine(IBus.Engine):
         # self.surrounding_text =self.get_surrounding_text()
         
     def do_disable(self):
-        self.wanted = True
-        IBus.Engine.do_disable(self)
+        self.wanted = False
+        # IBus.Engine.do_disable(self)
 
     # def do_set_surrounding_text(self, text, cursor_index, anchor_pos):
     #     """Handle engine setting the surrounding text"""
@@ -114,8 +114,6 @@ class DeepSpeechEngine(IBus.Engine):
 
     def do_property_activate(self, prop_name, state):
         log.info("Set property: %s = %r",prop_name, state)
-        # if prop_name == 'listening':
-        #     self.wanted = bool(state)
     def create_client_socket(self, sockname):
         import socket
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -125,17 +123,18 @@ class DeepSpeechEngine(IBus.Engine):
     
     def on_decoding_event(self, event):
         """We have received an event, update IBus with the details"""
-        # if not self.enabled:
-        #     log.debug("Not enabled")
-        #     return 
-        # if not self.has_focus:
-        #     log.debug("Not focussed")
-        #     return 
         self.debug_event(event)
         if not self.wanted:
             return
         choices = self.all_transcripts(event)
         self.show_choices(choices)
+        if not event.get('partial'):
+            best_guess = event['transcripts'][0]
+            if not best_guess['text'].strip():
+                return
+            # TODO: if confidence below some threshold, then we want to
+            # show options, but that doesn't seem to work at all :(
+            self.commit_text(IBus.Text.new_from_string(best_guess['text']))
     def show_choices(self, choices):
         if choices != self.lookup_table_content:
             self.lookup_table.clear()
@@ -209,7 +208,33 @@ class DeepSpeechEngine(IBus.Engine):
                     time.sleep(2)
         self.processing = None
 
+def get_options():
+    import argparse
+    parser = argparse.ArgumentParser(description='Run an IBus Engine for DeepSpeech')
+    parser.add_argument(
+        '-v','--verbose',
+        default=False,
+        action='store_true',
+        help='Enable verbose logging (for developmen/debugging)',
+    )
+    parser.add_argument(
+        '-l','--live',
+        default=False,
+        action='store_true',
+        help='If true, register on the DBus name %s and interact as a regular engine'%(
+            COMPONENT,
+        ),
+    )
+    return parser
+
+
 def main():
+    options = get_options().parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if options.verbose else logging.WARNING,
+        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
+    )
+
     log.info('Registering the component')
     component = IBus.Component(
         name = COMPONENT,
@@ -226,7 +251,7 @@ def main():
     mainloop = GLib.MainLoop()
     bus = IBus.Bus()
     def on_disconnected(bus):
-        mainloop.stop()
+        mainloop.quit()
     bus.connect('disconnected',on_disconnected)
     connection = bus.get_connection()
     assert connection, "IBus has no connection"
@@ -236,19 +261,25 @@ def main():
         GObject.type_from_name(NAME)
     ), "Unable to add the engine"
 
-    assert bus.register_component(component), "Unable to register our component"
-    def on_set_engine(source,result,data=None):
-        if result.had_error():
-            log.error("Unable to register!")
-            mainloop.stop()
-        log.info("Registration result: %s", dir(result))
-    def set_engine():
-        assert bus.set_global_engine_async(
-            SERVICE_NAME, 
-            5000, # shouldn't take this long! 
-            None, 
-            on_set_engine, 
-            None
+    if options.verbose:
+        assert bus.register_component(component), "Unable to register our component"
+        def on_set_engine(source,result,data=None):
+            if result.had_error():
+                log.error("Unable to register!")
+                mainloop.quit()
+        def set_engine():
+            bus.set_global_engine_async(
+                SERVICE_NAME, 
+                5000, # shouldn't take this long! 
+                None, 
+                on_set_engine, 
+                None
+            )
+    else:
+        GLib.idle_add(
+            bus.request_name,
+            COMPONENT,
+            IBus.BusNameFlag.ALLOW_REPLACEMENT,
         )
     # TODO: we should be checking the result here, the sync method just times out
     # but the async one seems to work, just takes a while
@@ -257,8 +288,4 @@ def main():
     mainloop.run()
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
-    )
     main()

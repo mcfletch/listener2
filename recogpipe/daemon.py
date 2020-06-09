@@ -5,7 +5,7 @@ import numpy as np
 import webrtcvad
 
 import threading
-log = logging.getLogger(__name__)
+log = logging.getLogger(__name__ if __name__ != '__main__' else 'recogpipe')
 
 # How long of leading silence causes it to be discarded?
 SAMPLE_RATE = 16000

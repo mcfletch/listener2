@@ -10,29 +10,7 @@ This repository includes the following:
 
 ## Installation/Setup
 
-```
-git clone https://github.com/mcfletch/deepspeech-docker.git
-cd deepspeech-docker
-```
-Starting the daemon in a docker container:
-```
-./recogpipe/dockersetup.py
-# when docker container is started...
-./recogpipe/daemon.py
-```
-Feeding some data into the daemon from your microphone:
-```
-ffmpeg-audio.sh 
-```
-Feeding some data into the daemon from a wav file:
-```
-ffmpeg-sample.sh path/to/your/file.wav
-```
-Running the IBus daemon on your desktop:
-```
-./recogpipe/ibusengine.py
-```
-
+See [Documentation](./docs/installation.rst)
 
 ## Testing bits out...
 

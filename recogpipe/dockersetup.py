@@ -15,6 +15,10 @@ USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR','/run/user/%s'%(os.geteuid()))
 RUN_DIR = os.path.join(USER_RUN_DIR,'recogpipe')
 DEFAULT_INPUT = os.path.join(RUN_DIR,'audio')
 
+def get_username():
+    import pwd
+    return pwd.getpwuid(os.geteuid()).pw_name
+
 def cache_models(version=DEFAULT_VERSION, cache_dir=MODEL_CACHE):
     """Cache the deepspeech models in user's cache directory"""
     for template in [
@@ -105,12 +109,25 @@ def get_options():
         action='store_true',
         help='If specified, force rebuilding of the docker image',
     )
+    parser.add_argument(
+        '-s','--shell',
+        default=False,
+        action='store_true',
+        help='If specified, run an interactive shell instead of a background daemon',
+    )
+    parser.add_argument(
+        '--stop',
+        default = False,
+        action = 'store_true',
+        help = 'If specified, halt the current docker process',
+    )
     return parser
 
 def main():
     options = get_options().parse_args()
     model_cache = os.path.join(options.cache,'model')
     cache_models(version=options.version, cache_dir=model_cache)
+    docker_name = 'recogpipe_%s'%(get_username())
     images = subprocess.check_output([
         'docker','images','deepspeech-client'
     ]).decode('utf-8').strip().splitlines()
@@ -125,6 +142,13 @@ def main():
             os.path.join(HERE,'../docker'),
         ]
         subprocess.check_call(command)
+    if options.stop:
+        for command in [
+            ['docker','stop',docker_name],
+            ['docker','rm',docker_name],
+        ]:
+            subprocess.call(command) # Note: *not* checked...
+        return 0
     if not os.path.exists(options.run):
         os.makedirs(options.run)
     if options.card is not None:
@@ -139,18 +163,24 @@ def main():
                 '--device',
                 device
             ])
+    if options.shell:
+        shell = ['/bin/bash']
+        shell_opts = ['-it']
+    else:
+        shell = []
+        shell_opts = ['-d']
     command = [
         'docker','run',
-        '-it',
+    ] + shell_opts + [
         '-v%s:/src/run'%(os.path.abspath(options.run),),
         '-v%s:/src/working'%(os.path.abspath(os.path.join(HERE,'..'))),
         '-v%s:/src/model'%(os.path.abspath(model_cache),),
         '-eDEEPSPEECH_VERSION=%s'%(options.version,),
+        '--name', 'recogpipe_%s'%(get_username()),
     ] + devices + [
         '--user','deepspeech',
         'recogpipe-server:%s'%(options.version,),
-        '/bin/bash'
-    ]
+    ] + shell
     log.info("%s", " ".join(command))
     os.execvp(command[0],command)
 
