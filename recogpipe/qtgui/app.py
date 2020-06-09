@@ -44,7 +44,7 @@ class RecogPipeApp(QtWidgets.QApplication):
         
     def create_event_listener(self):
         """Read json events from event source"""
-
+        
 
 
 log = logging.getLogger(__name__)

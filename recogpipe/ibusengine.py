@@ -21,6 +21,7 @@ gi.require_version('IBus','1.0')
 from gi.repository import IBus
 from gi.repository import GObject, GLib, Gio
 IBus.init()
+from . import eventreceiver
 import json, logging, threading, time, errno, socket, select, os
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
 
@@ -30,15 +31,7 @@ COMPONENT = "org.freedesktop.IBus.%s"%(NAME,)
 
 USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR','/run/user/%s'%(os.geteuid()))
 RUN_DIR = os.path.join(USER_RUN_DIR,'recogpipe')
-DEFAULT_INPUT = os.path.join(RUN_DIR,'audio')
-DEFAULT_OUTPUT = os.path.join(RUN_DIR,'events')
-
-def get_config():
-    return {
-        'source': 'hw:1,0',
-        'target': DEFAULT_INPUT,
-        'events': DEFAULT_OUTPUT,
-    }
+DEFAULT_PIPE = os.path.join(RUN_DIR,'clean-events')
 
 class RecogPipeEngine(IBus.Engine):
     """Provides an IBus Input Method Engine using RecogPipe backend
@@ -64,7 +57,6 @@ class RecogPipeEngine(IBus.Engine):
         """initialize the newly created engine
 
         """
-        self.config = get_config() 
         self.properties = IBus.PropList()
         # self.properties.append(IBus.Property(
         #     key='source',
@@ -99,7 +91,13 @@ class RecogPipeEngine(IBus.Engine):
         self.hide_lookup_table()
         self.hide_preedit_text()
         if not self.processing:
-            self.processing = threading.Thread(target=self.processing_thread)
+            self.processing = threading.Thread(
+                target=eventreceiver.read_thread,
+                kwargs=dict(
+                    sockname=DEFAULT_PIPE,
+                    callback=self.schedule_event,
+                ),
+            )
             self.processing.setDaemon(True)
             self.processing.start()
 
@@ -135,87 +133,22 @@ class RecogPipeEngine(IBus.Engine):
         sock.connect(sockname)
         return sock
     
+    def schedule_event(self, event):
+        """Called from the receiver thread to do our callback"""
+        GLib.idle_add(self.on_decoding_event,event)
     def on_decoding_event(self, event):
         """We have received an event, update IBus with the details"""
-        self.debug_event(event)
-        if not self.wanted:
-            return
-        choices = self.all_transcripts(event)
-        self.show_choices(choices)
         if not event.get('partial'):
-            best_guess = event['transcripts'][0]
-            if not best_guess['text'].strip():
+            best_guess = self.first_transcript(event)
+            if best_guess.strip() == 'he' or not best_guess:
                 return
             # TODO: if confidence below some threshold, then we want to
             # show options, but that doesn't seem to work at all :(
-            self.commit_text(IBus.Text.new_from_string(best_guess['text']))
-    def show_choices(self, choices):
-        if choices != self.lookup_table_content:
-            self.lookup_table.clear()
-            for choice in choices:
-                self.lookup_table.append_label(IBus.Text.new_from_string(choice))
-            self.update_lookup_table(self.lookup_table,True)
-            self.lookup_table_content = choices 
-        if len(choices) > 1 or choices[0] != '':
-            log.info("Show table")
-            self.show_lookup_table()
-        else:
-            log.info("Hide table")
-            self.hide_lookup_table()
-
+            log.debug("> %s", best_guess)
+            self.commit_text(IBus.Text.new_from_string(best_guess))
     def first_transcript(self, event):
         for transcript in event['transcripts']:
             return transcript['text']
-    def all_transcripts(self, event):
-        return [
-            transcript['text']
-            for transcript in event['transcripts']
-        ]
-
-    def processing_thread(self):
-        """Thread which listens to the server and updates our state
-
-        Eventually this should be replaced with a dbus api
-        that just receives up dates from the control panel applet
-        """
-        while self.wanted:
-            try:
-                log.debug("Opening event socket: %s", self.config['events'])
-                sock = self.create_client_socket(
-                    self.config['events']
-                )
-            except Exception as err:
-                log.exception("Unable to connect to event source")
-                time.sleep(5)
-            else:
-                log.debug("Waiting for events on %s", sock)
-                try:
-                    content = b''
-                    try:
-                        while self.wanted:
-                            readable = False 
-                            try:
-                                update = sock.recv(1024)
-                            except socket.error:
-                                time.sleep(.2 if not content else .02)
-                                continue
-
-                            if not update:
-                                log.debug("Socket seems to have closed")
-                                break
-                            content += update 
-                            while b'\000' in content:
-                                message,content = content.split(b'\000',1)
-                                decoded = json.loads(message)
-                                GLib.idle_add(self.on_decoding_event,decoded)
-                            # log.debug("%s bytes remaining",len(content))
-                    except Exception as err:
-                        log.warning("Crashed during recv, closing...")
-                finally:
-                    log.info("Closing event socket")
-                    sock.close() 
-                    time.sleep(2)
-        self.processing = None
 
 def get_options():
     import argparse
@@ -225,6 +158,12 @@ def get_options():
         default=False,
         action='store_true',
         help='Enable verbose logging (for developmen/debugging)',
+    )
+    parser.add_argument(
+        '-r','--raw',
+        default=False,
+        action='store_true',
+        help='Use raw (not cleaned) events for dictation (insert the raw DeepSpeech output)',
     )
     parser.add_argument(
         '-l','--live',
@@ -243,6 +182,10 @@ def main():
         level=logging.DEBUG if options.verbose else logging.WARNING,
         format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
     )
+    if options.raw:
+        log.warning("Dictating with raw DeepSpeech output")
+        global DEFAULT_PIPE
+        DEFAULT_PIPE = os.path.join(RUN_DIR,'events')
 
     log.debug('Registering the component')
     component = IBus.Component(
@@ -270,7 +213,7 @@ def main():
         GObject.type_from_name(NAME)
     ), "Unable to add the engine"
 
-    if options.verbose:
+    if not options.live:
         assert bus.register_component(component), "Unable to register our component"
         def on_set_engine(source,result,data=None):
             if result.had_error():
@@ -284,6 +227,7 @@ def main():
                 on_set_engine, 
                 None
             )
+        GLib.idle_add(set_engine)
     else:
         GLib.idle_add(
             bus.request_name,
@@ -293,7 +237,6 @@ def main():
     # TODO: we should be checking the result here, the sync method just times out
     # but the async one seems to work, just takes a while
     log.debug("Starting mainloop")
-    GLib.idle_add(set_engine)
     mainloop.run()
 
 if __name__ == "__main__":

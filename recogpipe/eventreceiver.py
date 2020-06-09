@@ -23,6 +23,7 @@ def create_client_socket(sockname):
     return sock
 
 def read_thread(callback, sockname = DEFAULT_SOCKET):
+    """Utility to run callback on each read event from sockname"""
     for event in read_from_socket(sockname):
         callback(event)
 
@@ -35,6 +36,9 @@ def read_from_socket(
         try:
             log.debug("Opening event socket: %s", sockname)
             sock = create_client_socket(sockname)
+        except FileNotFoundError as err:
+            log.info("Upstream source has not created: %s", sockname)
+            time.sleep(connect_backoff)
         except Exception as err:
             log.exception("Unable to connect to event source")
             time.sleep(connect_backoff)
@@ -46,9 +50,8 @@ def read_from_socket(
                 while True:
                     readable,_,_ = select.select(read_set,[],[],2)
                     if readable:
-                        update = sock.recv(4096)
+                        update = sock.recv(256)
                     else:
-                        log.debug("No update")
                         continue
                     if not update:
                         log.debug("Socket seems to have closed")
