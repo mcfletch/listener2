@@ -172,15 +172,6 @@ class RecogPipeEngine(IBus.Engine):
             for transcript in event['transcripts']
         ]
 
-    def debug_event(self, event):
-        log.info("Event: final=%s transcripts=%s",event['final'],len(event['transcripts']))
-        if event.get('final',False):
-            for transcript in event['transcripts']:
-                log.info("   %0.3f ==> %s",transcript['confidence'],transcript['text'])
-        else:
-            for transcript in event['transcripts'][:1]:
-                log.info("?  %0.3f ... %s",transcript['confidence'],transcript['text'])
-
     def processing_thread(self):
         """Thread which listens to the server and updates our state
 

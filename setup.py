@@ -31,6 +31,8 @@ if __name__ == "__main__":
                 'recogpipe-docker=recogpipe.dockersetup:main',
                 'recogpipe-daemon=recogpipe.daemon:main',
                 'recogpipe-ibus=recogpipe.ibusengine:main',
+                'recogpipe-debug-events=recogpipe.eventreceiver:main',
+                'recogpipe=recogpipe.qtgui.app:main',
             ],
         },
         install_requires=requirements,
