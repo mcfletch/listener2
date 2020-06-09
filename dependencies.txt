@@ -5,3 +5,5 @@ glib-networking
 ibus
 gir1.2-ibus-1.0
 gir1.2-glib-2.0
+ibus-gtk
+ibus-gtk3
