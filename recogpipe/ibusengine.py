@@ -6,6 +6,15 @@ and we're importing the IBus code into the process, though
 I suppose we're using gobject-introspection and the DBus
 to do the communication normally. Still, LGPL is fine
 and makes things consistent.
+
+we will need to revisit how this engine is laid out
+and likely create our own panel applet to provide a richer
+input environment and natural controls and to provide a
+tooltip showing the current partial recognition
+
+at that point this engine will be primarily responsible
+for keeping track of where text was inserted (so that we can
+remove the text if we need to do a correction).
 """
 import gi
 gi.require_version('IBus','1.0')
@@ -15,7 +24,7 @@ IBus.init()
 import json, logging, threading, time, errno, socket, select, os
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
 
-NAME='DeepSpeechPipe'
+NAME='RecogPipe'
 SERVICE_NAME=NAME.lower()
 COMPONENT = "org.freedesktop.IBus.%s"%(NAME,)
 
@@ -31,7 +40,7 @@ def get_config():
         'events': DEFAULT_OUTPUT,
     }
 
-class DeepSpeechEngine(IBus.Engine):
+class RecogPipeEngine(IBus.Engine):
     """Provides an IBus Input Method Engine using RecogPipe backend
     
     There is a *lot* of complexity in the IBus API that we still
@@ -43,7 +52,7 @@ class DeepSpeechEngine(IBus.Engine):
     DESCRIPTION = IBus.EngineDesc.new(
         SERVICE_NAME,
         NAME,
-        'DeepSpeech English',
+        'English RecogPipe',
         'en',
         'LGPL',
         'Mike C. Fletcher',
@@ -52,6 +61,9 @@ class DeepSpeechEngine(IBus.Engine):
     )
     wanted = False
     def __init__(self):
+        """initialize the newly created engine
+
+        """
         self.config = get_config() 
         self.properties = IBus.PropList()
         # self.properties.append(IBus.Property(
@@ -76,11 +88,11 @@ class DeepSpeechEngine(IBus.Engine):
         )
         self.lookup_table_content = []
         # self.lookup_table.ref_sink()
-        super(DeepSpeechEngine,self).__init__()
+        super(RecogPipeEngine,self).__init__()
     
     processing = None
     def do_focus_in(self):
-        log.info("Focus")
+        log.debug("engine received focus")
         # IBus.Engine.do_focus_in(self)
         self.wanted = True
         self.register_properties(self.properties)
@@ -92,18 +104,18 @@ class DeepSpeechEngine(IBus.Engine):
             self.processing.start()
 
     def do_focus_out(self):
-        log.info("Focus lost")
+        log.debug("the engine lost focus")
         # IBus.Engine.do_focus_out(self)
         # IBus.Engine.do_focus_out(self)
         self.wanted = False
     def do_enable(self):
-        """Enable the input..."""
-        log.info("Enabling")
+        log.debug("the engine was enabled")
         # IBus.Engine.do_enable(self)
         self.wanted = True
         # self.surrounding_text =self.get_surrounding_text()
         
     def do_disable(self):
+        log.debug("the engine was disabled")
         self.wanted = False
         # IBus.Engine.do_disable(self)
 
@@ -114,7 +126,9 @@ class DeepSpeechEngine(IBus.Engine):
 
     def do_property_activate(self, prop_name, state):
         log.info("Set property: %s = %r",prop_name, state)
+    
     def create_client_socket(self, sockname):
+        """open a unix socket to the given socket name"""
         import socket
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.setblocking(False)
@@ -168,10 +182,14 @@ class DeepSpeechEngine(IBus.Engine):
                 log.info("?  %0.3f ... %s",transcript['confidence'],transcript['text'])
 
     def processing_thread(self):
-        """Thread which listens to the server and updates our state"""
+        """Thread which listens to the server and updates our state
+
+        Eventually this should be replaced with a dbus api
+        that just receives up dates from the control panel applet
+        """
         while self.wanted:
             try:
-                log.info("Opening event socket: %s", self.config['events'])
+                log.debug("Opening event socket: %s", self.config['events'])
                 sock = self.create_client_socket(
                     self.config['events']
                 )
@@ -192,7 +210,7 @@ class DeepSpeechEngine(IBus.Engine):
                                 continue
 
                             if not update:
-                                log.info("Socket seems to have closed")
+                                log.debug("Socket seems to have closed")
                                 break
                             content += update 
                             while b'\000' in content:
@@ -235,7 +253,7 @@ def main():
         format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
     )
 
-    log.info('Registering the component')
+    log.debug('Registering the component')
     component = IBus.Component(
         name = COMPONENT,
         description='DeepSpeech-in-docker input method',
@@ -246,7 +264,7 @@ def main():
         command_line='/opt/deepspeech-docker/engine.py',
         textdomain='en', # TODO: is this language?
     )
-    component.add_engine(DeepSpeechEngine.DESCRIPTION)
+    component.add_engine(RecogPipeEngine.DESCRIPTION)
 
     mainloop = GLib.MainLoop()
     bus = IBus.Bus()
@@ -283,7 +301,7 @@ def main():
         )
     # TODO: we should be checking the result here, the sync method just times out
     # but the async one seems to work, just takes a while
-    log.info("Starting mainloop")
+    log.debug("Starting mainloop")
     GLib.idle_add(set_engine)
     mainloop.run()
 

@@ -1,4 +1,18 @@
 #! /usr/bin/env python3
+"""process which runs inside the docker daemon
+
+the purpose of the doctor damon process is to allow the set up of
+an environment which will support the deep speech recognition engine
+to run on any recent nvidia Ubuntu host.
+
+the basic operation of the demon is to create a named pipe
+in the users run directory to which any audio source can then be
+piped into the demon. the simplest way to achieve that
+is to pipe the import from alsa through ffmpeg into the named pipe.
+
+clients may onto the events unix socket in the same directory
+to receive the partial and final event json records.
+"""
 from deepspeech import Model, version
 import logging, os, sys, select, json, socket, queue, collections
 import numpy as np

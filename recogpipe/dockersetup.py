@@ -1,4 +1,14 @@
 #! /usr/bin/python
+"""process to create and run the dockerised daemon
+
+the container we create contains mostly the underlying libraries
+with the actual code mapped into the demon from the installation
+directory of the code here
+
+we map the video card from the host into the container
+so this should not be considered a safe operation on a multi user host
+but should be reasonable on a single seat device.
+"""
 import subprocess, os, sys, logging, requests, glob
 log = logging.getLogger(__name__)
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -16,11 +26,16 @@ RUN_DIR = os.path.join(USER_RUN_DIR,'recogpipe')
 DEFAULT_INPUT = os.path.join(RUN_DIR,'audio')
 
 def get_username():
+    """get the current users user name"""
     import pwd
     return pwd.getpwuid(os.geteuid()).pw_name
 
 def cache_models(version=DEFAULT_VERSION, cache_dir=MODEL_CACHE):
-    """Cache the deepspeech models in user's cache directory"""
+    """Cache the deepspeech models in user's cache directory
+    
+    the deep speech models are quite large files which are updated
+    less frequently than the deep speech code itself
+    """
     for template in [
         MODEL_FILE,
         SCORER_FILE,
