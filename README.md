@@ -40,21 +40,6 @@ work in terms of interpreting the stream of text to allow for:
 
 See [Documentation](./docs/installation.rst)
 
-## Testing bits out...
-
-Sending audio to the daemon
-```
-./ffmpeg-audio.sh hw:1,1
-./ffmpeg-sample.sh /path/to/some.wav
-```
-Viewing the raw transcripts from the daemon
-```
-nc -U /tmp/dspipe/events
-```
-Running the ibus engine interactively:
-```
-./ibusengine.py
-```
 [![PyPI Version](https://img.shields.io/pypi/v/recogpipe.svg)](https://pypi.python.org/pypi/recogpipe)
 
 
