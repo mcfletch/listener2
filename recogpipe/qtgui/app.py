@@ -2,64 +2,110 @@
 """Qt GUI Application for controlling RecogPipe"""
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import systrayicon
-import sys, os, logging
+import sys, os, logging, subprocess, threading, time
+
 HERE = os.path.dirname(os.path.abspath((__file__)))
 
 
 class RecogPipeApp(QtWidgets.QApplication):
+    wanted = True
+
     def __init__(self, argv, *args, **named):
-        super(RecogPipeApp,self).__init__(argv)
+        super(RecogPipeApp, self).__init__(argv)
         self.load_config()
+        self.audio_hw = 'hw:1,0'
+        self.check_ibus()
         self.create_systray()
-        self.create_audio_pipe()
         self.create_event_listener()
         self.history = []
+        # self.start_pipe(self.run_audio_pipe)
+        # self.start_pipe(self.run_ibus_engine)
+
+    def cleanup(self):
+        self.wanted = False
+        self.quit()
+
+    def check_ibus(self):
+        """Is our IBus daemon running?"""
+        address = subprocess.check_output(['ibus', 'address']).decode('ascii', 'ignore')
+        if address.strip() == '(null)':
+            log.warning("IBus daemon does not seem to be running, attempting to start")
+            command = [
+                'ibus-daemon',
+                '-d',
+                '-n',
+                os.environ.get('DESKTOP_SESSION', 'plasma'),
+                '-r',
+                '-v',
+            ]
+            log.debug("Daemon spawn command: %s", " ".join(command))
+            subprocess.check_call(command)
+        else:
+            log.info("IBus running at %r", address)
 
     def load_config(self):
         """Get the application's configuration"""
 
-
     def create_systray(self):
         self.systray = systrayicon.RecogPipeSystrayIcon()
         self.systray.set_state('stopped')
+        self.systray.show()
+        menu = QtWidgets.QMenu()
+        action = menu.addAction(QtGui.QIcon('exit'), 'Quit RecogPipe',)
+        action.setStatusTip('Exit recogpipe')
+        action.triggered.connect(self.cleanup)
+        # QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Quit)
+
+        self.systray.setContextMenu(menu)
 
     def check_container(self):
         """Check if the container service is running"""
 
-    def create_audio_pipe(self):
-        """Eventually should do this with QtMultimedia"""
-        self.audio_pipe = pipe = QtCore.Process()
-        # TODO: make the daemon use tcp or unix domain sockets... unix:/tmp/ffmpeg.socket
-        hw = 'hw:1,0'
-        uid = os.geteuid()
-        pipe.start( '/bin/bash',[
-            '-c',
-            "ffmpeg -f alsa -i %(hw)s -ac 1 -ar 16000 -f s16le -acodec pcm_s16le pipe:1 >  /run/user/%(uid)s/recogpipe/audio"%locals()
-        ])
-        pipe.connect('finished', self.on_audio_pipe_exit)
-    def on_audio_pipe_exit(self, *args):
-        log.warning("Audio pipe exited, restarting")
-        # TODO: should validate that the target is up...
-        self.create_audio_pipe()
-        
+    def start_pipe(self, target, *args):
+        """Create thread with our audio-pipe minder"""
+        thread = threading.Thread(target=target, args=args)
+        thread.setDaemon(True)
+        thread.start()
+
+    def run_ibus_engine(self):
+        while self.wanted:
+            command = [
+                'recogpipe-ibus',
+                '-v',
+            ]
+            pipe = subprocess.Popen(command,)
+            while pipe.poll() is None and self.wanted:
+                time.sleep(1.0)
+
+    def run_audio_pipe(self):
+        while self.wanted:
+            command = [
+                'recogpipe-audio',
+            ]
+            pipe = subprocess.Popen(command,)
+            while pipe.poll() is None and self.wanted:
+                time.sleep(1.0)
+
     def create_event_listener(self):
         """Read json events from event source"""
-        
 
 
 log = logging.getLogger(__name__)
+
+
 def get_options():
-    import argparse 
-    parser = argparse.ArgumentParser(
-        description='RecogPipe GUI front-end in PySide2'
-    )
+    import argparse
+
+    parser = argparse.ArgumentParser(description='RecogPipe GUI front-end in PySide2')
     parser.add_argument(
-        '-v','--verbose',
+        '-v',
+        '--verbose',
         default=False,
         action='store_true',
         help='Enable verbose logging (for developmen/debugging)',
     )
     return parser
+
 
 def main():
     options = get_options().parse_args()
@@ -70,6 +116,7 @@ def main():
     app = RecogPipeApp([])
 
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()

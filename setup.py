@@ -1,16 +1,21 @@
 #!/usr/bin/env python
 import os
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 from setuptools import setup, find_packages
 
-with open(os.path.join(HERE,'README.md')) as readme_file:
+with open(os.path.join(HERE, 'README.md')) as readme_file:
     readme = readme_file.read()
 
-requirements = [ ]
+requirements = []
 
-setup_requirements = ['pytest-runner', ]
+setup_requirements = [
+    'pytest-runner',
+]
 
-test_requirements = ['pytest>=3', ]
+test_requirements = [
+    'pytest>=3',
+]
 
 if __name__ == "__main__":
     setup(
@@ -31,8 +36,10 @@ if __name__ == "__main__":
                 'recogpipe-docker=recogpipe.dockersetup:main',
                 'recogpipe-daemon=recogpipe.daemon:main',
                 'recogpipe-ibus=recogpipe.ibusengine:main',
+                'recogpipe-interpreter=recogpipe.interpreter:main',
                 'recogpipe-debug-events=recogpipe.eventreceiver:main',
                 'recogpipe=recogpipe.qtgui.app:main',
+                'recogpipe-audio=recogpipe.pipeaudio:main',
             ],
         },
         install_requires=requirements,

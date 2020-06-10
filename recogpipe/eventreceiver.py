@@ -1,36 +1,41 @@
 """Simple iterative reading of an open socket to produce events"""
 import socket, logging, time, json, select, os
+
 log = logging.getLogger(__name__)
 
-DEFAULT_SOCKET = '/run/user/%s/recogpipe/events'%(os.geteuid())
+DEFAULT_SOCKET = '/run/user/%s/recogpipe/events' % (os.geteuid())
+
 
 def debug_event(event):
-    log.info("Event: final=%s transcripts=%s",event['final'],len(event['transcripts']))
-    if event.get('final',False):
+    log.info(
+        "Event: final=%s transcripts=%s", event['final'], len(event['transcripts'])
+    )
+    if event.get('final', False):
         for transcript in event['transcripts']:
-            log.info("   %0.3f ==> %s",transcript['confidence'],transcript['text'])
+            log.info("   %0.3f ==> %s", transcript['confidence'], transcript['text'])
     else:
         for transcript in event['transcripts'][:1]:
-            log.info("?  %0.3f ... %s",transcript['confidence'],transcript['text'])
+            log.info("?  %0.3f ... %s", transcript['confidence'], transcript['text'])
 
 
 def create_client_socket(sockname):
     """Connect to the given socket as a read-only client"""
     import socket
+
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.setblocking(False)
     sock.connect(sockname)
     return sock
 
-def read_thread(callback, sockname = DEFAULT_SOCKET):
+
+def read_thread(callback, sockname=DEFAULT_SOCKET):
     """Utility to run callback on each read event from sockname"""
     for event in read_from_socket(sockname):
         callback(event)
 
 
 def read_from_socket(
-    sockname=DEFAULT_SOCKET,
-    connect_backoff = 2.0,
+    sockname=DEFAULT_SOCKET, connect_backoff=2.0,
 ):
     while True:
         try:
@@ -48,7 +53,7 @@ def read_from_socket(
             try:
                 content = b''
                 while True:
-                    readable,_,_ = select.select(read_set,[],[],2)
+                    readable, _, _ = select.select(read_set, [], [], 2)
                     if readable:
                         update = sock.recv(256)
                     else:
@@ -58,16 +63,18 @@ def read_from_socket(
                         break
                     content += update
                     while b'\000' in content:
-                        message,content = content.split(b'\000',1)
+                        message, content = content.split(b'\000', 1)
                         decoded = json.loads(message)
                         yield decoded
             finally:
                 log.info("Closing %s", sockname)
-                sock.close() 
+                sock.close()
                 time.sleep(connect_backoff)
+
 
 def get_options():
     import argparse
+
     parser = argparse.ArgumentParser(description='Run an IBus Engine for DeepSpeech')
     return parser
 
@@ -75,7 +82,6 @@ def get_options():
 def main():
     options = get_options().parse_args()
     logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
+        level=logging.DEBUG, format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
     )
     read_thread(debug_event)

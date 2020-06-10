@@ -1,13 +1,16 @@
 """provide for the interpretation of incoming utterances based on user provided rules"""
-import re, logging 
+import re, logging, os
+
 log = logging.getLogger(__name__)
+
 
 def text_entry_rule(match, replace):
     """Create a rule from the text-entry mini-language"""
     no_space_before = replace.startswith('^')
     no_space_after = replace.endswith('^')
     text = replace.strip('^')[1:-1]
-    def apply_rule(words, start_index=0,end_index=-1):
+
+    def apply_rule(words, start_index=0, end_index=-1):
         """Given a match on the rule, produce modified result"""
         prefix = words[:start_index]
         suffix = words[end_index:]
@@ -18,29 +21,36 @@ def text_entry_rule(match, replace):
         if no_space_after:
             result.append('^')
         return prefix + result + suffix
-    apply_rule.__name__ = 'text_entry_%s'%("_".join(match))
-    apply_rule.match = match 
+
+    apply_rule.__name__ = 'text_entry_%s' % ("_".join(match))
+    apply_rule.match = match
     apply_rule.text = text
     apply_rule.replace = replace
     apply_rule.no_space_after = no_space_after
     apply_rule.no_space_before = no_space_before
     return apply_rule
 
+
 def transform_rule(match, transformation):
     phrase = match[-1] == PHRASE_MARKER
     word = match[-1] == WORD_MARKER
+
     def apply_rule(words, start_index=0, end_index=-1):
         """Given a match, transform and return the results"""
         working = words[:]
         if phrase:
-            working[start_index:] = transformation(words[end_index-1:])
+            working[start_index:] = transformation(words[end_index - 1 :])
         else:
-            working[start_index:end_index] = transformation(words[end_index-1:end_index])
+            working[start_index:end_index] = transformation(
+                words[end_index - 1 : end_index]
+            )
         return working
-    apply_rule.__name__ = 'transform_entry_%s'%("_".join(match))
-    apply_rule.match = match 
+
+    apply_rule.__name__ = 'transform_entry_%s' % ("_".join(match))
+    apply_rule.match = match
     apply_rule.text = None
     return apply_rule
+
 
 # General commands that already recognise well
 good_commands = '''
@@ -142,70 +152,73 @@ shebang => ^'#!'
 """
 
 NAMED_RULES = {}
+
+
 def named_rule(function):
-    NAMED_RULES[function.__name__] = function 
+    NAMED_RULES[function.__name__] = function
     return function
+
 
 @named_rule
 def title(words):
     return [word.title() for word in words]
-@named_rule 
+
+
+@named_rule
 def all_caps(words):
     return [word.upper() for word in words]
-@named_rule 
-def constant(words):
-    return ['^','_'.join([
-        x for x in all_caps(words)
-        if x != '^'
-    ]),'^']
-@named_rule 
-def camel(words):
-    return ['^',''.join([
-        x for x in title(words)
-        if x != '^'
-    ]),'^']
 
-@named_rule 
+
+@named_rule
+def constant(words):
+    return ['^', '_'.join([x for x in all_caps(words) if x != '^']), '^']
+
+
+@named_rule
+def camel(words):
+    return ['^', ''.join([x for x in title(words) if x != '^']), '^']
+
+
+@named_rule
 def underscore_name(words):
-    return ['^','_'.join([
-        x for x in words
-        if x != '^'
-    ]),'^']
+    return ['^', '_'.join([x for x in words if x != '^']), '^']
 
 
 def iter_rules(command_set):
-    for i,line in enumerate(command_set.splitlines()):
+    for i, line in enumerate(command_set.splitlines()):
         line = line.strip()
         if (not line) or line.startswith('#'):
-            continue 
+            continue
         try:
-            pattern,target = line.split('=>',1)
+            pattern, target = line.split('=>', 1)
         except ValueError as err:
-            log.warning("Unable to parse rule #%i: %r", i+1, line)
+            log.warning("Unable to parse rule #%i: %r", i + 1, line)
             continue
         pattern = pattern.strip().split()
         target = target.strip()
         yield pattern, target
 
-def load_rules(command_set,rules=None):
+
+def load_rules(command_set, rules=None):
     """load a set of commands from a string"""
     rules = rules or {}
-    for pattern,target in iter_rules(command_set):
+    for pattern, target in iter_rules(command_set):
         branch = rules
         for word in pattern:
-            branch = branch.setdefault(word,{})
+            branch = branch.setdefault(word, {})
         if target.endswith('()'):
-            rule = transform_rule(pattern,NAMED_RULES[target[:-2]])
+            rule = transform_rule(pattern, NAMED_RULES[target[:-2]])
         else:
-            rule = text_entry_rule(pattern,target)
+            rule = text_entry_rule(pattern, target)
         branch[None] = rule
     return rules
+
 
 # class Context(attr.s):
 #     """A chaining store of context based on communication environment"""
 #     parent: 'Context' = None
 #     rules: 'List[RuleSet]' = None
-#     history: 'List[Utterance]' = None 
+#     history: 'List[Utterance]' = None
 
 #     def interpret(self, event):
 #         """Attempt to determine what this event likely means"""
@@ -213,12 +226,13 @@ def load_rules(command_set,rules=None):
 PHRASE_MARKER = '${phrase}'
 WORD_MARKER = '${word}'
 
-def match_rules(words,rules):
+
+def match_rules(words, rules):
     """Find rules which match in the rules"""
     for start in range(len(words)):
         branch = rules
         i = 0
-        for i,word in enumerate(words[start:]):
+        for i, word in enumerate(words[start:]):
             if word in branch:
                 branch = branch[word]
             elif WORD_MARKER in branch:
@@ -227,24 +241,26 @@ def match_rules(words,rules):
                 branch = branch[PHRASE_MARKER]
                 break
             else:
-                # we don't match any further rules, do we 
+                # we don't match any further rules, do we
                 # have a current match?
                 i -= 1
                 break
         if None in branch:
             rule = branch[None]
-            return rule,words,start,start+i+1
+            return rule, words, start, start + i + 1
+
 
 def apply_rules(words, rules):
     """Iteratively apply rules from rule-set until nothing changes"""
     working = words[:]
     for i in range(20):
-        match = match_rules(working,rules)
+        match = match_rules(working, rules)
         if match:
             working = match[0](*match[1:])
         else:
             break
-    return working 
+    return working
+
 
 def words_to_text(words):
     """Compress words taking no-space markers into effect..."""
@@ -252,7 +268,7 @@ def words_to_text(words):
     no_space = False
     for item in words:
         if item == '^':
-            no_space = True 
+            no_space = True
         else:
             if not no_space:
                 result.append(' ')
@@ -262,3 +278,23 @@ def words_to_text(words):
         result.append(' ')
     return ''.join(result)
 
+
+EVENTS = '/run/user/%s/recogpipe/events' % (os.geteuid())
+LIVE_EVENTS = '/run/user/%s/recogpipe/clean-events' % (os.geteuid())
+
+
+def main():
+    logging.basicConfig(level=logging.DEBUG)
+    from . import eventreceiver, eventserver
+    import json
+
+    rules = load_rules(good_commands)
+    queue = eventserver.create_sending_threads(LIVE_EVENTS)
+    for event in eventreceiver.read_from_socket(sockname=EVENTS, connect_backoff=2.0,):
+        if event.get('final'):
+            for transcript in event['transcripts']:
+                new_words = apply_rules(transcript['words'], rules)
+                transcript['text'] = words_to_text(new_words)
+                transcript['words'] = new_words
+                break
+            queue.put(event)

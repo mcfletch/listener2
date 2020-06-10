@@ -14,17 +14,19 @@ clients may onto the events unix socket in the same directory
 to receive the partial and final event json records.
 """
 from deepspeech import Model, version
-import logging, os, sys, select, json, socket, queue, collections
+from recogpipe import eventserver
+import logging, os, sys, select, json, socket, queue, collections, time
 import numpy as np
 import webrtcvad
 
 import threading
+
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'recogpipe')
 
 # How long of leading silence causes it to be discarded?
 SAMPLE_RATE = 16000
-FRAME_SIZE = (SAMPLE_RATE//1000)*20 # rate of 16000, so 16samples/ms
-SILENCE_FRAMES = 10 # in 20ms frames
+FRAME_SIZE = (SAMPLE_RATE // 1000) * 20  # rate of 16000, so 16samples/ms
+SILENCE_FRAMES = 10  # in 20ms frames
 
 
 def metadata_to_json(metadata, partial=False):
@@ -36,7 +38,8 @@ def metadata_to_json(metadata, partial=False):
     }
     for transcript in metadata.transcripts:
         struct['transcripts'].append(transcript_to_json(transcript))
-    return struct 
+    return struct
+
 
 def transcript_to_json(transcript, partial=False):
     """Convert DeepSpeect Transcript struct to a json-compatible format"""
@@ -61,13 +64,13 @@ def transcript_to_json(transcript, partial=False):
         if token.text == ' ':
             if word:
                 struct['words'].append(''.join(word))
-            in_word = False 
+            in_word = False
             del word[:]
         else:
             if not in_word:
                 struct['word_starts'].append(token.start_time)
-            in_word = True 
-            word.append(token.text) 
+            in_word = True
+            word.append(token.text)
     if word:
         struct['words'].append(''.join(word))
     struct['text'] = ''.join(text)
@@ -76,37 +79,44 @@ def transcript_to_json(transcript, partial=False):
 
 class RingBuffer(object):
     """Crude numpy-backed ringbuffer"""
+
     def __init__(self, duration=30, rate=SAMPLE_RATE):
-        self.duration = duration 
+        self.duration = duration
         self.rate = rate
         self.size = duration * rate
-        self.buffer = np.zeros((self.size,),dtype=np.int16) 
+        self.buffer = np.zeros((self.size,), dtype=np.int16)
         self.write_head = 0
         self.start = 0
+
     def read_in(self, fh, blocksize=1024):
         """Read in content from the buffer"""
-        target = self.buffer[self.write_head:self.write_head+blocksize]
-        if hasattr(fh,'readinto'):
+        target = self.buffer[self.write_head : self.write_head + blocksize]
+        if hasattr(fh, 'readinto'):
             # On the blocking fifo this consistently reads
             # the whole blocksize chunk of data...
             written = fh.readinto(target)
-            if written != blocksize*2:
-                log.debug("Didn't read the whole buffer (likely disconnect): %s/%s",written,blocksize//2)
-                target = target[:(written//2)]
+            if written != blocksize * 2:
+                log.debug(
+                    "Didn't read the whole buffer (likely disconnect): %s/%s",
+                    written,
+                    blocksize // 2,
+                )
+                target = target[: (written // 2)]
         else:
-            # This is junk, unix and localhost buffering in ffmpeg 
+            # This is junk, unix and localhost buffering in ffmpeg
             # means we take 6+ reads to get a buffer and we wind up
             # losing a *lot* of audio due to delays
             tview = target.view(np.uint8)
             written = 0
             reads = 0
             while written < blocksize:
-                written += fh.recv_into(tview[written:],blocksize-written)
+                written += fh.recv_into(tview[written:], blocksize - written)
                 reads += 1
             if reads > 1:
                 log.debug("Took %s reads to get %s bytes", reads, written)
-        self.write_head = (self.write_head + written) % self.size 
+        self.write_head = (self.write_head + written) % self.size
         return target
+
     def itercurrent(self):
         """Iterate over all samples in the current record
         
@@ -114,18 +124,25 @@ class RingBuffer(object):
         reset the stream with the content written already
         """
         if self.write_head < self.start:
-            yield self.buffer[self.start:]
-            yield self.buffer[:self.write_head]
+            yield self.buffer[self.start :]
+            yield self.buffer[: self.write_head]
         else:
-            yield self.buffer[self.start:self.write_head]
+            yield self.buffer[self.start : self.write_head]
+
     def __len__(self):
         if self.write_head < self.start:
-            return self.size - self.start + self.write_head 
+            return self.size - self.start + self.write_head
         else:
             return self.write_head - self.start
 
 
-def produce_voice_runs(input,read_frames=2,rate=SAMPLE_RATE,silence=SILENCE_FRAMES,voice_detect_aggression=3):
+def produce_voice_runs(
+    input,
+    read_frames=2,
+    rate=SAMPLE_RATE,
+    silence=SILENCE_FRAMES,
+    voice_detect_aggression=3,
+):
     """Produce runs of audio with voice detected
     
     input -- FIFO (named pipe) or Socket from which to read
@@ -157,16 +174,17 @@ def produce_voice_runs(input,read_frames=2,rate=SAMPLE_RATE,silence=SILENCE_FRAM
     # set of frames that were not considered speech
     # but that we might need to recognise the first
     # word of an utterance, here (in 20ms frames)
-    silence_frames = collections.deque([],10)
+    silence_frames = collections.deque([], 10)
     while True:
-        buffer = ring.read_in(input,read_size)
+        buffer = ring.read_in(input, read_size)
         if not len(buffer):
             log.debug("Input disconnected")
             yield None
             silence_count = 0
-        for start in range(0,len(buffer)-1,FRAME_SIZE):
-            frame = buffer[start:start+FRAME_SIZE]
-            if vad.is_speech(frame,rate):
+            raise IOError('Input disconnect')
+        for start in range(0, len(buffer) - 1, FRAME_SIZE):
+            frame = buffer[start : start + FRAME_SIZE]
+            if vad.is_speech(frame, rate):
                 if silence_count:
                     # Update the ring-buffer to tell us where
                     # the audio started... note: currently there
@@ -188,12 +206,12 @@ def produce_voice_runs(input,read_frames=2,rate=SAMPLE_RATE,silence=SILENCE_FRAM
                     log.debug('[]')
                     yield None
                 elif silence_count < silence:
-                    yield frame 
+                    yield frame
                     log.debug('? %s', silence_count)
 
+
 def run_recognition(
-    model, input, out_queue, read_size=320, rate=SAMPLE_RATE,
-    max_decode_rate=4,
+    model, input, out_queue, read_size=320, rate=SAMPLE_RATE, max_decode_rate=4,
 ):
     """Read fragments from input, write results to output
     
@@ -216,130 +234,101 @@ def run_recognition(
     for metadata in iter_metadata(model, input=input, rate=rate):
         out_queue.put(metadata)
 
-def iter_metadata(model, input, rate=SAMPLE_RATE,max_decode_rate=4):
+
+def iter_metadata(model, input, rate=SAMPLE_RATE, max_decode_rate=4):
     """Iterate over input producing transcriptions with model"""
     stream = model.createStream()
     length = last_decode = 0
-    for buffer in produce_voice_runs(
-        input,
-        rate=rate,
-    ):
+    for buffer in produce_voice_runs(input, rate=rate,):
         if buffer is None:
             if length:
-                metadata = metadata_to_json(stream.finishStreamWithMetadata(15),partial=False)
+                metadata = metadata_to_json(
+                    stream.finishStreamWithMetadata(15), partial=False
+                )
                 for tran in metadata['transcripts']:
-                    log.info(">>> %0.02f %s", tran['confidence'],tran['words'])
+                    log.info(">>> %0.02f %s", tran['confidence'], tran['words'])
                 yield metadata
                 stream = model.createStream()
                 length = last_decode = 0
         else:
             stream.feedAudioContent(buffer)
             written = len(buffer)
-            length += written 
+            length += written
             if (length - last_decode) > rate // max_decode_rate:
-                metadata = metadata_to_json(stream.intermediateDecodeWithMetadata(),partial=True)
+                metadata = metadata_to_json(
+                    stream.intermediateDecodeWithMetadata(), partial=True
+                )
                 yield metadata
                 words = metadata['transcripts'][0]['words']
-                log.info("... %s",' '.join(words))
+                log.info("... %s", ' '.join(words))
 
-def open_fifo(filename,mode='rb'):
+
+def open_fifo(filename, mode='rb'):
     """Open fifo for communication"""
     if not os.path.exists(filename):
         os.mkfifo(filename)
-    return open(filename,mode)
+    return open(filename, mode)
+
 
 def create_input_socket(port):
     """Connect to the given socket as a read-only client"""
     import socket
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setblocking(True)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 640*100) 
-    sock.bind(('127.0.0.1',port))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 640 * 100)
+    sock.bind(('127.0.0.1', port))
     sock.listen(1)
     return sock
 
-
-def create_output_socket(sockname='/tmp/dspipe/events'):
-    if os.path.exists(sockname):
-        os.remove(sockname)
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.bind(sockname)
-    log.info("Waiting on %s", sockname)
-    return sock
-def output_thread(sock,outputs):
-    log.info("Waiting for connections")
-    sock.listen(1)
-    while True:
-        conn,addr = sock.accept()
-        log.info("Got a connection on %s", conn)
-        q = queue.Queue()
-        outputs.append(q)
-        threading.Thread(target=out_writer,args=(conn,q,outputs)).start()
-def write_queue(queue, outputs):
-    """run the write queue"""
-    while True:
-        record = queue.get()
-        encoded = json.dumps(record).encode('utf-8')
-        for output in outputs:
-            output.put(encoded)
-def out_writer(conn,q, outputs):
-    """Trivial thread to write events to the client"""
-    while True:
-        try:
-            content = q.get()
-            conn.sendall(content)
-            conn.sendall(b'\000')
-        except Exception:
-            log.exception("Failed during send")
-            conn.close()
-            break
-    outputs.remove(q)
 
 def get_options():
-    import argparse 
+    import argparse
+
     parser = argparse.ArgumentParser(
-        description = 'Provides an audio sink to which to write buffers to feed into DeepSpeech',
+        description='Provides an audio sink to which to write buffers to feed into DeepSpeech',
     )
     parser.add_argument(
-        '-i','--input',
-        default='/src/run/audio',
+        '-i', '--input', default='/src/run/audio',
     )
     parser.add_argument(
-        '-o','--output',
-        default='/src/run/events',
+        '-o', '--output', default='/src/run/events',
     )
     parser.add_argument(
-        '-m','--model',
-        default = '/src/model/deepspeech-%s-models.pbmm'%os.environ.get('DEEPSPEECH_VERSION','0.7.3'),
-        help = 'DeepSpeech published model'
+        '-m',
+        '--model',
+        default='/src/model/deepspeech-%s-models.pbmm'
+        % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
+        help='DeepSpeech published model',
     )
     parser.add_argument(
-        '-s','--scorer',
-        default = '/src/model/deepspeech-%s-models.scorer'%os.environ.get('DEEPSPEECH_VERSION','0.7.3'),
-        help = 'DeepSpeect published scorer',
+        '-s',
+        '--scorer',
+        default='/src/model/deepspeech-%s-models.scorer'
+        % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
+        help='DeepSpeect published scorer',
     )
     parser.add_argument(
         '--beam-width',
-        default = None,
-        type = int,
-        help = 'If specified, override the model default beam width',
+        default=None,
+        type=int,
+        help='If specified, override the model default beam width',
     )
     parser.add_argument(
         '--port',
         default=None,
         type=int,
-        help = 'If specified, use a TCP/IP socket, unfortunately we cannot use unix domain sockets due to broken ffmpeg buffering',
+        help='If specified, use a TCP/IP socket, unfortunately we cannot use unix domain sockets due to broken ffmpeg buffering',
     )
-    return parser 
+    return parser
 
-def process_input_file(conn,options, out_queue, background=True):
+
+def process_input_file(conn, options, out_queue, background=True):
     # TODO: allow socket connections from *clients* to choose
     # the model rather than setting it in the daemon...
     # to be clear, *output* clients, not audio sinks
     log.info("Starting recognition on %s", conn)
-    model = Model(
-        options.model,
-    )
+    model = Model(options.model,)
     if options.beam_width:
         model.setBeamWidth(options.beam_width)
     desired_sample_rate = model.sampleRate()
@@ -349,48 +338,38 @@ def process_input_file(conn,options, out_queue, background=True):
         log.info("Disabling the scorer")
         model.disableExternalScorer()
     if background:
-        t = threading.Thread(
-            target=run_recognition,
-            args=(model,conn,out_queue)
-        )
+        t = threading.Thread(target=run_recognition, args=(model, conn, out_queue))
         t.setDaemon(background)
         t.start()
     else:
-        run_recognition(model,conn,out_queue)
+        run_recognition(model, conn, out_queue)
 
 
 def main():
     options = get_options().parse_args()
     log.info("Send Raw, Mono, 16KHz, s16le, audio to %s", options.input)
 
-
-    outputs = []
-    out_queue = queue.Queue()
-    t = threading.Thread(target=write_queue,args=(out_queue,outputs))
-    t.setDaemon(True)
-    t.start()
-
-    sock = create_output_socket(options.output)
-    t = threading.Thread(target=output_thread,args=(sock,outputs))
-    t.setDaemon(True)
-    t.start()
+    queue = eventserver.create_sending_threads(options.output)
 
     if options.port:
         sock = create_input_socket(options.port)
         while True:
             log.info("Waiting on %s", sock)
-            conn,addr = sock.accept()
-            process_input_file(conn,options, out_queue, background=True)
+            conn, addr = sock.accept()
+            process_input_file(conn, options, out_queue, background=True)
     else:
         # log.info("Opening fifo (will pause until a source connects)")
-        sock = open_fifo(options.input)
-        process_input_file(sock,options,out_queue, background=False)
-
+        while True:
+            try:
+                sock = open_fifo(options.input)
+                process_input_file(sock, options, out_queue, background=False)
+            except IOError as err:
+                log.info("Disconnect, re-opening fifo")
+                time.sleep(2.0)
 
 
 if __name__ == '__main__':
     logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
+        level=logging.DEBUG, format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
     )
     main()

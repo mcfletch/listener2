@@ -1,4 +1,3 @@
-
 class Microphone(QtMultimedia.QAudioRecorder):
     """Attempt to use qt multimedia to feed recogpipe
     
@@ -8,15 +7,16 @@ class Microphone(QtMultimedia.QAudioRecorder):
         mic.record()
     
     """
+
     def default_format(self):
-        self.setAudioCodec( 'audio/x-raw' )
+        self.setAudioCodec('audio/x-raw')
         settings = QtMultimedia.QAudioEncoderSettings()
         settings.setChannelCount(1)
         settings.setSampleRate(16000)
         self.setEncodingSettings(settings)
 
     def default_pipe(self):
-        path = '/run/user/%s/recogpipe/audio'%os.geteuid() 
+        path = '/run/user/%s/recogpipe/audio' % os.geteuid()
         if os.path.exists(path):
             self.setOutputLocation(QtCore.QUrl.fromLocalFile(path))
             return True

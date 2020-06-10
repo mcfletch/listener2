@@ -17,21 +17,26 @@ for keeping track of where text was inserted (so that we can
 remove the text if we need to do a correction).
 """
 import gi
-gi.require_version('IBus','1.0')
+
+gi.require_version('IBus', '1.0')
 from gi.repository import IBus
 from gi.repository import GObject, GLib, Gio
+
 IBus.init()
 from . import eventreceiver, interpreter
 import json, logging, threading, time, errno, socket, select, os
+
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
 
-NAME='RecogPipe'
-SERVICE_NAME=NAME.lower()
-COMPONENT = "org.freedesktop.IBus.%s"%(NAME,)
+BUS = None
+NAME = 'RecogPipe'
+SERVICE_NAME = NAME.lower()
+COMPONENT = "org.freedesktop.IBus.%s" % (NAME,)
 
-USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR','/run/user/%s'%(os.geteuid()))
-RUN_DIR = os.path.join(USER_RUN_DIR,'recogpipe')
-DEFAULT_PIPE = os.path.join(RUN_DIR,'clean-events')
+USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
+RUN_DIR = os.path.join(USER_RUN_DIR, 'recogpipe')
+DEFAULT_PIPE = os.path.join(RUN_DIR, 'clean-events')
+
 
 class RecogPipeEngine(IBus.Engine):
     """Provides an IBus Input Method Engine using RecogPipe backend
@@ -41,6 +46,7 @@ class RecogPipeEngine(IBus.Engine):
     alternatives system, or write a custom GUI for doing the 
     partial and final sets
     """
+
     __gtype_name__ = NAME
     DESCRIPTION = IBus.EngineDesc.new(
         SERVICE_NAME,
@@ -49,10 +55,11 @@ class RecogPipeEngine(IBus.Engine):
         'en',
         'LGPL',
         'Mike C. Fletcher',
-        '', # icon
-        'us', # keyboard layout
+        '',  # icon
+        'us',  # keyboard layout
     )
     wanted = False
+
     def __init__(self):
         """initialize the newly created engine
 
@@ -65,27 +72,25 @@ class RecogPipeEngine(IBus.Engine):
         #     tooltip='ALSA device such as hw:0,0 or hw:1,0 (see arecord -l for ids)',
         #     visible=True,
         # ))
-        self.properties.append(IBus.Property(
-            key='listening',
-            type=IBus.PropType.TOGGLE,
-            label='DeepSpeech',
-            tooltip='Toggle whether the engine is currently listening',
-            visible=True,
-        ))
+        self.properties.append(
+            IBus.Property(
+                key='listening',
+                type=IBus.PropType.TOGGLE,
+                label='DeepSpeech',
+                tooltip='Toggle whether the engine is currently listening',
+                visible=True,
+            )
+        )
         self.lookup_table = IBus.LookupTable.new(
-            5, # size
-            0, # index,
-            True, # cursor visible
-            True, # round
+            5, 0, True, True,  # size  # index,  # cursor visible  # round
         )
         self.lookup_table_content = []
-        self.interpreter_rules = interpreter.load_rules(
-            interpreter.good_commands,
-        )
+        self.interpreter_rules = interpreter.load_rules(interpreter.good_commands,)
         # self.lookup_table.ref_sink()
-        super(RecogPipeEngine,self).__init__()
-    
+        super(RecogPipeEngine, self).__init__()
+
     processing = None
+
     def do_focus_in(self):
         log.debug("engine received focus")
         # IBus.Engine.do_focus_in(self)
@@ -96,89 +101,92 @@ class RecogPipeEngine(IBus.Engine):
         if not self.processing:
             self.processing = threading.Thread(
                 target=eventreceiver.read_thread,
-                kwargs=dict(
-                    sockname=DEFAULT_PIPE,
-                    callback=self.schedule_event,
-                ),
+                kwargs=dict(sockname=DEFAULT_PIPE, callback=self.schedule_event,),
             )
             self.processing.setDaemon(True)
             self.processing.start()
 
     def do_focus_out(self):
         log.debug("the engine lost focus")
-        # IBus.Engine.do_focus_out(self)
-        # IBus.Engine.do_focus_out(self)
         self.wanted = False
+
     def do_enable(self):
         log.debug("the engine was enabled")
         # IBus.Engine.do_enable(self)
         self.wanted = True
-        # self.surrounding_text =self.get_surrounding_text()
-        
+        self.surrounding_text = self.get_surrounding_text()
+        log.debug("Surrounding text: %s", self.surrounding_text)
+
     def do_disable(self):
         log.debug("the engine was disabled")
         self.wanted = False
-        # IBus.Engine.do_disable(self)
 
-    # def do_set_surrounding_text(self, text, cursor_index, anchor_pos):
-    #     """Handle engine setting the surrounding text"""
-    #     log.info("Got surrounding text: %s at %s", text.get_text(),cursor_index)
-    #     self.surrounding_text = text,cursor_index,anchor_pos
+    def do_set_surrounding_text(self, text, cursor_index, anchor_pos):
+        """Handle engine setting the surrounding text"""
+        log.info("Got surrounding text: %s at %s", text.get_text(), cursor_index)
+        self.surrounding_text = text, cursor_index, anchor_pos
 
     def do_property_activate(self, prop_name, state):
-        log.info("Set property: %s = %r",prop_name, state)
-    
+        log.info("Set property: %s = %r", prop_name, state)
+
     def create_client_socket(self, sockname):
         """open a unix socket to the given socket name"""
         import socket
+
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.setblocking(False)
         sock.connect(sockname)
         return sock
-    
+
     def schedule_event(self, event):
         """Called from the receiver thread to do our callback"""
-        GLib.idle_add(self.on_decoding_event,event)
+        GLib.idle_add(self.on_decoding_event, event)
+
     def on_decoding_event(self, event):
         """We have received an event, update IBus with the details"""
         if not event.get('partial'):
-            transcript = self.first_transcript(event) 
-            if transcript ['text'].strip() in   ('','he'):
-                return 
-            best_guess = transcript['words']
+            transcript = self.first_transcript(event)
+            if transcript['text'].strip() in ('', 'he'):
+                return
+            best_guess = transcript['text']
             # TODO: if confidence below some threshold, then we want to
             # show options, but that doesn't seem to work at all :(
-            best_guess = interpreter.words_to_text(
-                interpreter.apply_rules(best_guess,self.interpreter_rules)
-            )
-            log.debug("> %s", best_guess)
+            # best_guess = interpreter.words_to_text(
+            #     interpreter.apply_rules(best_guess,self.interpreter_rules)
+            # )
+            # log.debug("> %s", best_guess)
             self.commit_text(IBus.Text.new_from_string(best_guess))
+
     def first_transcript(self, event):
         for transcript in event['transcripts']:
-            return transcript 
+            return transcript
+
 
 def get_options():
     import argparse
+
     parser = argparse.ArgumentParser(description='Run an IBus Engine for DeepSpeech')
     parser.add_argument(
-        '-v','--verbose',
+        '-v',
+        '--verbose',
         default=False,
         action='store_true',
         help='Enable verbose logging (for developmen/debugging)',
     )
     parser.add_argument(
-        '-r','--raw',
+        '-r',
+        '--raw',
         default=False,
         action='store_true',
         help='Use raw (not cleaned) events for dictation (insert the raw DeepSpeech output)',
     )
     parser.add_argument(
-        '-l','--live',
+        '-l',
+        '--live',
         default=False,
         action='store_true',
-        help='If true, register on the DBus name %s and interact as a regular engine'%(
-            COMPONENT,
-        ),
+        help='If true, register on the DBus name %s and interact as a regular engine'
+        % (COMPONENT,),
     )
     return parser
 
@@ -192,59 +200,63 @@ def main():
     if options.raw:
         log.warning("Dictating with raw DeepSpeech output")
         global DEFAULT_PIPE
-        DEFAULT_PIPE = os.path.join(RUN_DIR,'events')
+        DEFAULT_PIPE = os.path.join(RUN_DIR, 'events')
 
     log.debug('Registering the component')
     component = IBus.Component(
-        name = COMPONENT,
+        name=COMPONENT,
         description='DeepSpeech-in-docker input method',
         version='1.0',
         license='LGPL',
         author='Mike C. Fletcher',
         homepage='https://github.com/mcfletch/deepspeech-docker',
-        command_line='/opt/deepspeech-docker/engine.py',
-        textdomain='en', # TODO: is this language?
+        command_line='recogpipe-ibus -r',
+        textdomain='en',  # TODO: is this language?
     )
     component.add_engine(RecogPipeEngine.DESCRIPTION)
 
     mainloop = GLib.MainLoop()
-    bus = IBus.Bus()
+    global BUS
+    bus = BUS = IBus.Bus()
+
     def on_disconnected(bus):
         mainloop.quit()
-    bus.connect('disconnected',on_disconnected)
+
+    bus.connect('disconnected', on_disconnected)
     connection = bus.get_connection()
     assert connection, "IBus has no connection"
     factory = IBus.Factory.new(connection)
     factory.add_engine(
-        SERVICE_NAME,
-        GObject.type_from_name(NAME)
+        SERVICE_NAME, GObject.type_from_name(NAME)
     ), "Unable to add the engine"
 
     if not options.live:
         assert bus.register_component(component), "Unable to register our component"
-        def on_set_engine(source,result,data=None):
+
+        def on_set_engine(source, result, data=None):
             if result.had_error():
                 log.error("Unable to register!")
                 mainloop.quit()
+
         def set_engine():
             bus.set_global_engine_async(
-                SERVICE_NAME, 
-                5000, # shouldn't take this long! 
-                None, 
-                on_set_engine, 
-                None
+                SERVICE_NAME,
+                5000,  # shouldn't take this long!
+                None,
+                on_set_engine,
+                None,
             )
+
         GLib.idle_add(set_engine)
     else:
         GLib.idle_add(
-            bus.request_name,
-            COMPONENT,
-            IBus.BusNameFlag.ALLOW_REPLACEMENT,
+            bus.request_name, COMPONENT, IBus.BusNameFlag.ALLOW_REPLACEMENT,
         )
     # TODO: we should be checking the result here, the sync method just times out
     # but the async one seems to work, just takes a while
     log.debug("Starting mainloop")
     mainloop.run()
+
 
 if __name__ == "__main__":
     main()
