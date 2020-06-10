@@ -1,4 +1,4 @@
-# Voice Dictation as a (Docker) Service for IBus [!RecogPipe Icon](https://raw.githubusercontent.com/mcfletch/deepspeech-docker/master/recogpipe/static/panel-icon-recording.svg)
+# Voice Dictation as a (Docker) Service for IBus
 
 My goal with this project is to create an input method for those who
 have difficulty typing with their hands, with a focus on allowing
@@ -40,8 +40,6 @@ work in terms of interpreting the stream of text to allow for:
 * cut down the container to a more reasonable size
 * allow for switching language models for different programming contexts
 
-[![PyPI Version](https://img.shields.io/pypi/v/recogpipe.svg)](https://pypi.python.org/pypi/recogpipe)
-
 ## Installation/Setup
 
 See [Installation Docs](./docs/installation.rst)
@@ -51,3 +49,8 @@ See [Installation Docs](./docs/installation.rst)
 * [IBus](https://lazka.github.io/pgi-docs/IBus-1.0/index.html)
 * [DeepSpeech](https://deepspeech.readthedocs.io/en/latest/Python-API.html)
 * [Pyside2](https://doc.qt.io/qtforpython/modules.html)
+
+![RecogPipe Icon](https://raw.githubusercontent.com/mcfletch/deepspeech-docker/master/recogpipe/static/panel-icon-recording.svg)
+
+[![PyPI Version](https://img.shields.io/pypi/v/recogpipe.svg)](https://pypi.python.org/pypi/recogpipe)
+
