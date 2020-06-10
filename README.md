@@ -23,9 +23,11 @@ work in terms of interpreting the stream of text to allow for:
 * generally making it a useful tool for desktop use [started]
 * allowing for editing/correcting utterances
 * voice coding features and support 
-* modify the training system for the language model so that it takes into account 
-  how the text would be spoken,  rather than just the final text
-* create a coding specific  language model to be swapped  in on demand 
+* tokenizers/language models
+
+  * create a tokeniser that takes text and produces the text-as-it-would-be-dictated
+    for creating languge models
+  * create a coding specific language model to be swapped in on demand 
 
 ## Roadmap
 
@@ -33,12 +35,14 @@ work in terms of interpreting the stream of text to allow for:
 * get basic working dictation into arbitrary applications working [done]
 * create a control-panel application [started]
 * create punctuation and control short cuts and phrases  [started]
-* track interaction and key press events to allow for pauses in dictation 
-  without jamming words together
+* track interaction and key press events to allow for pauses in dictation without extra spaces
+* send special keys (tab, enter, and modifiers to start with)
 * create a "correct that" GUI (with other predictions and free-form editing)
 * create a control panel allowing for one click toggling of listening
 * cut down the container to a more reasonable size
-* allow for switching language models for different programming contexts
+* allow for switching language models for different programming contexts and providing
+  current-context hints such as class methods, modules, etc from the language server
+* maybe create an IBus service for the core code
 
 ## Installation/Setup
 
