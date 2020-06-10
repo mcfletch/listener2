@@ -17,18 +17,22 @@ The current state of the project is that we have a proof of concept
 which can type into visual studio code, kate, and Google Chrome. There will need to be a lot of
 work in terms of interpreting the stream of text to allow for:
 
-* providing basic puctuation, capitalisation, etc
-* excluding breath sounds and the like from being interpreted
-* generally making it a useful tool for desktop use
+* providing basic puctuation, capitalisation, etc [started]
+* excluding breath sounds and the like from being interpreted [started]
+* track insertion position to allow for proper spacing between utterances 
+* generally making it a useful tool for desktop use [started]
 * allowing for editing/correcting utterances
-* voice coding
+* voice coding features and support 
+* modify the training system for the language model so that it takes into account 
+  how the text would be spoken,  rather than just the final text
+* create a coding specific  language model to be swapped  in on demand 
 
 ## Roadmap
 
 * create a docker container with a working deepspeech release [done]
 * get basic working dictation into arbitrary applications working [done]
-* create a control-panel application
-* create punctuation and control short cuts and phrases
+* create a control-panel application [started]
+* create punctuation and control short cuts and phrases  [started]
 * track interaction and key press events to allow for pauses in dictation 
   without jamming words together
 * create a "correct that" GUI (with other predictions and free-form editing)
