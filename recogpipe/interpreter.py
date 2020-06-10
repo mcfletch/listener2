@@ -74,6 +74,8 @@ at symbol => ^'@'^
 no space => ^''^
 dot => ^'.'^
 comma => ^','
+colon => ^':'^
+semi colon => ^';'
 
 # # Key symbol entry
 # press enter => \\key (Enter)
