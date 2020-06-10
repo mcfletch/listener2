@@ -21,7 +21,7 @@ gi.require_version('IBus','1.0')
 from gi.repository import IBus
 from gi.repository import GObject, GLib, Gio
 IBus.init()
-from . import eventreceiver
+from . import eventreceiver, interpreter
 import json, logging, threading, time, errno, socket, select, os
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
 
@@ -79,6 +79,9 @@ class RecogPipeEngine(IBus.Engine):
             True, # round
         )
         self.lookup_table_content = []
+        self.interpreter_rules = interpreter.load_rules(
+            interpreter.good_commands,
+        )
         # self.lookup_table.ref_sink()
         super(RecogPipeEngine,self).__init__()
     
@@ -139,16 +142,20 @@ class RecogPipeEngine(IBus.Engine):
     def on_decoding_event(self, event):
         """We have received an event, update IBus with the details"""
         if not event.get('partial'):
-            best_guess = self.first_transcript(event)
-            if best_guess.strip() == 'he' or not best_guess:
-                return
+            transcript = self.first_transcript(event) 
+            if transcript ['text'].strip() in   ('','he'):
+                return 
+            best_guess = transcript['words']
             # TODO: if confidence below some threshold, then we want to
             # show options, but that doesn't seem to work at all :(
+            best_guess = interpreter.words_to_text(
+                interpreter.apply_rules(best_guess,self.interpreter_rules)
+            )
             log.debug("> %s", best_guess)
             self.commit_text(IBus.Text.new_from_string(best_guess))
     def first_transcript(self, event):
         for transcript in event['transcripts']:
-            return transcript['text']
+            return transcript 
 
 def get_options():
     import argparse

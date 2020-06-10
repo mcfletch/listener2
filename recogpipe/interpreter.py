@@ -90,13 +90,16 @@ comma => ^','
 # alt ${word} => \\key (Alt+${word})
 
 all caps ${phrase}  => all_caps()
+all cap ${phrase}  => all_caps()
 title ${phrase} => title()
 cap ${word} => title()
 caps ${word} => title()
 capital ${word} => title()
 constant ${phrase} => constant()
 camel case ${phrase} => camel()
-
+camel caps ${phrase} => camel()
+underscore name ${phrase} => underscore_name()
+ 
 # caps on => caps_on()
 # caps off => caps_off()
 # spell that => correction()
@@ -157,6 +160,13 @@ def constant(words):
 def camel(words):
     return ['^',''.join([
         x for x in title(words)
+        if x != '^'
+    ]),'^']
+
+@named_rule 
+def underscore_name(words):
+    return ['^','_'.join([
+        x for x in words
         if x != '^'
     ]),'^']
 
