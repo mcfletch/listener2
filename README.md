@@ -36,10 +36,14 @@ work in terms of interpreting the stream of text to allow for:
 * cut down the container to a more reasonable size
 * allow for switching language models for different programming contexts
 
-## Installation/Setup
-
-See [Documentation](./docs/installation.rst)
-
 [![PyPI Version](https://img.shields.io/pypi/v/recogpipe.svg)](https://pypi.python.org/pypi/recogpipe)
 
+## Installation/Setup
 
+See [Installation Docs](./docs/installation.rst)
+
+## Reference Docs for Devs
+
+* [IBus](https://lazka.github.io/pgi-docs/IBus-1.0/index.html)
+* [DeepSpeech](https://deepspeech.readthedocs.io/en/latest/Python-API.html)
+* [Pyside2](https://doc.qt.io/qtforpython/modules.html)
