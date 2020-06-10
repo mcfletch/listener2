@@ -1,4 +1,4 @@
-# Voice Dictation as a (Docker) Service for IBus
+# Voice Dictation as a (Docker) Service for IBus [!RecogPipe Icon](https://raw.githubusercontent.com/mcfletch/deepspeech-docker/master/recogpipe/static/panel-icon-recording.svg)
 
 My goal with this project is to create an input method for those who
 have difficulty typing with their hands, with a focus on allowing
