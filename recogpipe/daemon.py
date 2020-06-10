@@ -86,9 +86,27 @@ class RingBuffer(object):
     def read_in(self, fh, blocksize=1024):
         """Read in content from the buffer"""
         target = self.buffer[self.write_head:self.write_head+blocksize]
-        written = fh.readinto(target)
+        if hasattr(fh,'readinto'):
+            # On the blocking fifo this consistently reads
+            # the whole blocksize chunk of data...
+            written = fh.readinto(target)
+            if written != blocksize*2:
+                log.debug("Didn't read the whole buffer (likely disconnect): %s/%s",written,blocksize//2)
+                target = target[:(written//2)]
+        else:
+            # This is junk, unix and localhost buffering in ffmpeg 
+            # means we take 6+ reads to get a buffer and we wind up
+            # losing a *lot* of audio due to delays
+            tview = target.view(np.uint8)
+            written = 0
+            reads = 0
+            while written < blocksize:
+                written += fh.recv_into(tview[written:],blocksize-written)
+                reads += 1
+            if reads > 1:
+                log.debug("Took %s reads to get %s bytes", reads, written)
         self.write_head = (self.write_head + written) % self.size 
-        return target[:written]
+        return target
     def itercurrent(self):
         """Iterate over all samples in the current record
         
@@ -208,7 +226,7 @@ def iter_metadata(model, input, rate=SAMPLE_RATE,max_decode_rate=4):
     ):
         if buffer is None:
             if length:
-                metadata = metadata_to_json(stream.finishStreamWithMetadata(5),partial=False)
+                metadata = metadata_to_json(stream.finishStreamWithMetadata(15),partial=False)
                 for tran in metadata['transcripts']:
                     log.info(">>> %0.02f %s", tran['confidence'],tran['words'])
                 yield metadata
@@ -229,6 +247,17 @@ def open_fifo(filename,mode='rb'):
     if not os.path.exists(filename):
         os.mkfifo(filename)
     return open(filename,mode)
+
+def create_input_socket(port):
+    """Connect to the given socket as a read-only client"""
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(True)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 640*100) 
+    sock.bind(('127.0.0.1',port))
+    sock.listen(1)
+    return sock
+
 
 def create_output_socket(sockname='/tmp/dspipe/events'):
     if os.path.exists(sockname):
@@ -295,19 +324,44 @@ def get_options():
         type = int,
         help = 'If specified, override the model default beam width',
     )
+    parser.add_argument(
+        '--port',
+        default=None,
+        type=int,
+        help = 'If specified, use a TCP/IP socket, unfortunately we cannot use unix domain sockets due to broken ffmpeg buffering',
+    )
     return parser 
 
-
-def main():
-    options = get_options().parse_args()
+def process_input_file(conn,options, out_queue, background=True):
+    # TODO: allow socket connections from *clients* to choose
+    # the model rather than setting it in the daemon...
+    # to be clear, *output* clients, not audio sinks
+    log.info("Starting recognition on %s", conn)
     model = Model(
         options.model,
     )
     if options.beam_width:
         model.setBeamWidth(options.beam_width)
     desired_sample_rate = model.sampleRate()
+    if options.scorer:
+        model.enableExternalScorer(options.scorer)
+    else:
+        log.info("Disabling the scorer")
+        model.disableExternalScorer()
+    if background:
+        t = threading.Thread(
+            target=run_recognition,
+            args=(model,conn,out_queue)
+        )
+        t.setDaemon(background)
+        t.start()
+    else:
+        run_recognition(model,conn,out_queue)
+
+
+def main():
+    options = get_options().parse_args()
     log.info("Send Raw, Mono, 16KHz, s16le, audio to %s", options.input)
-    model.enableExternalScorer(options.scorer)
 
 
     outputs = []
@@ -321,10 +375,17 @@ def main():
     t.setDaemon(True)
     t.start()
 
-    log.info("Opening fifo (will pause until a source connects)")
-    input = open_fifo(options.input)
-    log.info("Starting recognition")
-    run_recognition(model, input, out_queue)
+    if options.port:
+        sock = create_input_socket(options.port)
+        while True:
+            log.info("Waiting on %s", sock)
+            conn,addr = sock.accept()
+            process_input_file(conn,options, out_queue, background=True)
+    else:
+        # log.info("Opening fifo (will pause until a source connects)")
+        sock = open_fifo(options.input)
+        process_input_file(sock,options,out_queue, background=False)
+
 
 
 if __name__ == '__main__':
