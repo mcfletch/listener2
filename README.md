@@ -50,7 +50,5 @@ See [Installation Docs](./docs/installation.rst)
 * [DeepSpeech](https://deepspeech.readthedocs.io/en/latest/Python-API.html)
 * [Pyside2](https://doc.qt.io/qtforpython/modules.html)
 
-![RecogPipe Icon](https://raw.githubusercontent.com/mcfletch/deepspeech-docker/master/recogpipe/static/panel-icon-recording.svg)
-
 [![PyPI Version](https://img.shields.io/pypi/v/recogpipe.svg)](https://pypi.python.org/pypi/recogpipe)
 
