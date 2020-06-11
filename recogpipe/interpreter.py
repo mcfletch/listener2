@@ -8,7 +8,7 @@ def text_entry_rule(match, replace):
     """Create a rule from the text-entry mini-language"""
     no_space_before = replace.startswith('^')
     no_space_after = replace.endswith('^')
-    text = replace.strip('^')[1:-1]
+    text = bytes(replace.strip('^')[1:-1], 'utf-8').decode('unicode_escape')
 
     def apply_rule(words, start_index=0, end_index=-1):
         """Given a match on the rule, produce modified result"""
@@ -55,9 +55,11 @@ def transform_rule(match, transformation):
 # General commands that already recognise well
 good_commands = '''
 # Typing characters
-# new line => ^'\\n'
-# new paragraph => ^'\\n'
+new line => ^'\\n'^
+new paragraph => ^'\\n'^
+tab key => ^'\\t'^
 period => ^'.'
+dot => ^'.'^
 question mark => ^'?'
 exclamation mark => ^'!'
 open parentheses => '('^
@@ -74,18 +76,67 @@ open single quote => "'"^
 close single quote => ^"'"
 open triple quote => '"""'^
 close triple quote => ^'"""'
+triple start quote => '"""'^
+triple end quote => ^'"""'
 ampersand character => "&"
+and character => '&'
+and symbol => '&'
+or symbol => '|'
+or character => '|'
 pipe character => "|"
-backslash => ^'\\'^
+backslash => ^'\\\\'^
 slash => ^'/'^
+slash slash => ^'//'
 space => ^' '^
 bang => ^'!'
+sharp symbol => ^'#'
+hash symbol => ^'#'
 at symbol => ^'@'^
 no space => ^''^
-dot => ^'.'^
 comma => ^','
 colon => ^':'^
 semi colon => ^';'
+equals => '='
+equal sign => '='
+not equal => '!='
+double equal => '=='
+double equals => '=='
+dollar sign => ^'$'^
+per cent format ${name} => percent_format()
+percent format ${name} => percent_format()
+per cent => ^'%'^
+asterisk => ^'*'^
+asterisk character => '*'^ 
+asterisk asterisk  => '**'^
+plus character => '+'
+minus character => '-'
+hyphen => ^'-'^
+division character => '/'
+greater than => '>'
+less than => '<'
+ellipsis => ^'...'
+caret => ^'^'^ 
+caret symbol  => ^'^'^ 
+caret character => ^'^'^ 
+arrow symbol => '=>'
+back tick => '`'
+open brace => ^'{'^
+close brace => ^'}'^
+tilde => '~'^
+
+all caps ${phrase}  => all_caps()
+all cap ${phrase}  => all_caps()
+title ${phrase} => title()
+cap ${word} => title()
+caps ${word} => title()
+capital ${word} => title()
+constant ${phrase} => constant()
+camel case ${phrase} => camel()
+camel caps ${phrase} => camel()
+see name ${phrase} => camel_lower()
+underscore name ${phrase} => underscore_name()
+under name ${phrase} => underscore_name()
+
 
 # # Key symbol entry
 # press enter => \\key (Enter)
@@ -100,17 +151,6 @@ semi colon => ^';'
 # unselect => \\key (Escape)
 # escape => \\key (Escape)
 # alt ${word} => \\key (Alt+${word})
-
-all caps ${phrase}  => all_caps()
-all cap ${phrase}  => all_caps()
-title ${phrase} => title()
-cap ${word} => title()
-caps ${word} => title()
-capital ${word} => title()
-constant ${phrase} => constant()
-camel case ${phrase} => camel()
-camel caps ${phrase} => camel()
-underscore name ${phrase} => underscore_name()
  
 # caps on => caps_on()
 # caps off => caps_off()
@@ -146,10 +186,11 @@ word left
 word right
 line start 
 line end
-asterisk => '*' 
 octothorpe => ^'#'
 shebang => ^'#!'
 """
+
+DICTATION_RULES  =  
 
 NAMED_RULES = {}
 
@@ -176,12 +217,27 @@ def constant(words):
 
 @named_rule
 def camel(words):
-    return ['^', ''.join([x for x in title(words) if x != '^']), '^']
+    result = []
+    for word in words:
+        result.append(word)
+        result.append('^')
+    del result[-1]
+    return result
+
+
+@named_rule
+def camel_lower(words):
+    return [words[0], '^'] + camel(words[1:])
 
 
 @named_rule
 def underscore_name(words):
     return ['^', '_'.join([x for x in words if x != '^']), '^']
+
+
+@named_rule
+def percent_format(name):
+    return ['%(', '^', name, '^', ')s']
 
 
 def iter_rules(command_set):
