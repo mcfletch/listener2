@@ -40,6 +40,8 @@ if __name__ == "__main__":
                 'recogpipe-debug-events=recogpipe.eventreceiver:main',
                 'recogpipe=recogpipe.qtgui.app:main',
                 'recogpipe-audio=recogpipe.pipeaudio:main',
+                'recogpipe-uinput-device=recogpipe.uinputdriver:main',
+                'recogpipe-uinput-rebuild-mapping=recogpipe.uinputdriver:rebuild_mapping',
             ],
         },
         install_requires=requirements,
