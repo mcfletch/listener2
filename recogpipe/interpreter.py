@@ -137,8 +137,8 @@ see name ${phrase} => camel_lower()
 underscore name ${phrase} => underscore_name()
 under name ${phrase} => underscore_name()
 
-
 # # Key symbol entry
+# press ${key} => \\key ${key}
 # press enter => \\key (Enter)
 # go up => \\key (Up)
 # go down => \\key (Down)
