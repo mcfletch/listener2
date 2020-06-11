@@ -101,6 +101,7 @@ def find_nvidia_cards():
     if not devices:
         log.error("Unable to find any nvidia cards with lspci")
         raise SystemExit(2)
+    log.info("Considering the following cards nVidia devices: %s", ' '.join(devices))
     return devices
 
 
@@ -186,7 +187,6 @@ def main():
             ['docker', 'rm', docker_name],
         ]:
             subprocess.call(command)  # Note: *not* checked...
-        return 0
     if not os.path.exists(options.run):
         os.makedirs(options.run)
     if options.card is not None:
@@ -218,7 +218,7 @@ def main():
             'recogpipe_%s' % (get_username()),
         ]
         + devices
-        + ['--user', 'deepspeech', 'recogpipe-server:%s' % (options.version,),]
+        + ['recogpipe-server:%s' % (options.version,),]
         + shell
     )
     log.info("%s", " ".join(command))

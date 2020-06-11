@@ -1,4 +1,7 @@
-"""provide for the interpretation of incoming utterances based on user provided rules"""
+"""provide for the interpretation of incoming utterances based on user provided rules
+
+
+"""
 import re, logging, os
 
 log = logging.getLogger(__name__)
@@ -190,7 +193,6 @@ octothorpe => ^'#'
 shebang => ^'#!'
 """
 
-DICTATION_RULES  =  
 
 NAMED_RULES = {}
 

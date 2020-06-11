@@ -18,6 +18,7 @@ from recogpipe import eventserver
 import logging, os, sys, select, json, socket, queue, collections, time
 import numpy as np
 import webrtcvad
+from . import defaults
 
 import threading
 
@@ -320,6 +321,13 @@ def get_options():
         type=int,
         help='If specified, use a TCP/IP socket, unfortunately we cannot use unix domain sockets due to broken ffmpeg buffering',
     )
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        default=False,
+        action='store_true',
+        help='Enable verbose logging (for developmen/debugging)',
+    )
     return parser
 
 
@@ -347,9 +355,10 @@ def process_input_file(conn, options, out_queue, background=True):
 
 def main():
     options = get_options().parse_args()
+    defaults.setup_logging(options)
     log.info("Send Raw, Mono, 16KHz, s16le, audio to %s", options.input)
 
-    queue = eventserver.create_sending_threads(options.output)
+    out_queue = eventserver.create_sending_threads(options.output)
 
     if options.port:
         sock = create_input_socket(options.port)
@@ -362,8 +371,9 @@ def main():
         while True:
             try:
                 sock = open_fifo(options.input)
+                log.info("FIFO connected, processing")
                 process_input_file(sock, options, out_queue, background=False)
-            except IOError as err:
+            except (webrtcvad._webrtcvad.Error, IOError) as err:
                 log.info("Disconnect, re-opening fifo")
                 time.sleep(2.0)
 

@@ -35,4 +35,4 @@ RUN chown -R deepspeech /src/
 RUN mkdir -p /src/working
 WORKDIR /src/working
 
-CMD ["/src/working/recogpipe/daemon.py"]
+CMD ["/src/working/scripts/docker-startup.py"]
