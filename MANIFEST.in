@@ -2,6 +2,8 @@ include README.md
 include docker/Dockerfile
 include dependencies.txt
 include ffmpeg*.sh
+include pyproject.toml
+include tox.ini 
 
 recursive-include tests *
 recursive-exclude * __pycache__
@@ -10,4 +12,10 @@ recursive-exclude * *.py[co]
 exclude model/deepspeech*
 
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif
+recursive-exclude docs/_build *
 exclude samples/*.wav
+
+recursive-include docker *
+recursive-include rulesets *.rules
+recursive-include listener/static *
+include scripts/*.sh 
