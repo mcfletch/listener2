@@ -1,33 +1,23 @@
-# Voice Dictation as a (Docker) Service for IBus
+# Listener (v2) Voice Dictation as a (Docker) Service for IBus
+
+Listener is a voice dictation service for Linux desk tops
+which uses the Mozilla Deep Speech  engine to provide the
+basic recognition services and focuses on providing
+sufficient  accuracy and services to allow for coding
+common programming languages.
 
 My goal with this project is to create an input method for those who
-have difficulty typing with their hands, with a focus on allowing
-coding by voice on Linux Desktops. I am *not* attempting to create a
-hands free system or personal assistant.
+have *difficulty* typing with their hands (such as myself), with a 
+focus on allowing coding by voice. My  personal focus is not
+to allow for hands free operation of the machine.
 
-This repository includes the following:
+## Current Status of the Project
 
-* a Docker container that can run [Mozilla DeepSpeech](https://github.com/mozilla/DeepSpeech) hardware-accelerated by your
-  host OS's (NVidia) graphics card; the container reads audio from a pipe and
-  reports results to an event-socket
-* an IBus Engine that allows the results of the recognition to be treated as
-  regular input to the (Linux) host operating system
+The current state of the project is a proof of concept, what works:
 
-The current state of the project is that we have a proof of concept
-which can type into visual studio code, kate, and Google Chrome. There will need to be a lot of
-work in terms of interpreting the stream of text to allow for:
-
-* providing basic puctuation, capitalisation, etc [started]
-* excluding breath sounds and the like from being interpreted [started]
-* track insertion position to allow for proper spacing between utterances 
-* generally making it a useful tool for desktop use [started]
-* allowing for editing/correcting utterances
-* voice coding features and support 
-* tokenizers/language models
-
-  * create a tokeniser that takes text and produces the text-as-it-would-be-dictated
-    for creating languge models
-  * create a coding specific language model to be swapped in on demand 
+* typing content into visual studio code, kate, and google chrome
+* the start of basic punctuation capitalization et cetera  driven by
+  user editable rules files
 
 ## Roadmap
 
@@ -35,14 +25,32 @@ work in terms of interpreting the stream of text to allow for:
 * get basic working dictation into arbitrary applications working [done]
 * create a control-panel application [started]
 * create punctuation and control short cuts and phrases  [started]
+* allow for switching language models for different programming contexts and providing
+  current-context hints such as class methods, modules, etc from the language server
+* create language models which are  dictation aware, so that the common  dictation short cuts
+   such as `cap X`  have higher priorities
 * track interaction and key press events to allow for pauses in dictation without extra spaces
-* send special keys (tab, enter, and modifiers to start with)
+   this will have to happen in the IBus  component in order to get proper notification
+* send special keys (tab, enter, and modifiers to start with) [proof of concept done]
 * create a "correct that" GUI (with other predictions and free-form editing)
 * create a control panel allowing for one click toggling of listening
 * cut down the container to a more reasonable size
-* allow for switching language models for different programming contexts and providing
-  current-context hints such as class methods, modules, etc from the language server
-* maybe create an IBus service for the core code
+* maybe create an DBus service for the core code [started]
+
+## Architecture
+
+* pacat sends audio to a named socket
+* a docker container runs [Mozilla DeepSpeech](https://github.com/mozilla/DeepSpeech) 
+  hardware-accelerated by your host OS's (NVidia) graphics card
+
+  * the container reads the audio from a pipe and reports results to a user-local event-socket
+
+* an interpreter process listens to the event  and attempts to interpret the results
+  according to the users rules,  and eventually custom language models
+* an IBus Engine that allows the results of the recognition to be treated as
+  regular input to the (Linux) host operating system
+* a UInput mechanism that allows for the introduction of special characters as though they were
+  typed directly into a keyboard
 
 ## Installation/Setup
 
@@ -54,5 +62,5 @@ See [Installation Docs](./docs/installation.rst)
 * [DeepSpeech](https://deepspeech.readthedocs.io/en/latest/Python-API.html)
 * [Pyside2](https://doc.qt.io/qtforpython/modules.html)
 
-[![PyPI Version](https://img.shields.io/pypi/v/recogpipe.svg)](https://pypi.python.org/pypi/recogpipe)
+[![PyPI Version](https://img.shields.io/pypi/v/listener.svg)](https://pypi.python.org/pypi/listener)
 

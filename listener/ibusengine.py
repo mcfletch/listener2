@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-"""Host side IBus engine using the Dockerised recogpipe
+"""Host side IBus engine using the Dockerised listener
 
 Note: this daemon is LGPL because IBus is LGPL licensed
 and we're importing the IBus code into the process, though
@@ -30,17 +30,17 @@ log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
 
 BUS = None
 MAINLOOP = None
-NAME = 'RecogPipe'
+NAME = 'Listener'
 SERVICE_NAME = NAME.lower()
 COMPONENT = "org.freedesktop.IBus.%s" % (NAME,)
 
 USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
-RUN_DIR = os.path.join(USER_RUN_DIR, 'recogpipe')
+RUN_DIR = os.path.join(USER_RUN_DIR, 'listener')
 DEFAULT_PIPE = os.path.join(RUN_DIR, 'clean-events')
 
 
-class RecogPipeEngine(IBus.Engine):
-    """Provides an IBus Input Method Engine using RecogPipe backend
+class ListenerEngine(IBus.Engine):
+    """Provides an IBus Input Method Engine using Listener backend
     
     There is a *lot* of complexity in the IBus API that we still
     need to get sorted out. For instance, should we use IBus
@@ -52,7 +52,7 @@ class RecogPipeEngine(IBus.Engine):
     DESCRIPTION = IBus.EngineDesc.new(
         SERVICE_NAME,
         NAME,
-        'English RecogPipe',
+        'English Listener',
         'en',
         'LGPL',
         'Mike C. Fletcher',
@@ -82,24 +82,25 @@ class RecogPipeEngine(IBus.Engine):
                 visible=True,
             )
         )
-        self.lookup_table = IBus.LookupTable.new(
-            5, 0, True, True,  # size  # index,  # cursor visible  # round
-        )
-        self.lookup_table_content = []
-        self.interpreter_rules, self.rule_set = interpreter.load_rules(
-            interpreter.good_commands,
-        )
+        # self.lookup_table = IBus.LookupTable.new(
+        #     5, 0, True, True,  # size  # index,  # cursor visible  # round
+        # )
+        # self.lookup_table_content = []
+        # self.interpreter_rules, self.rule_set = interpreter.load_rules(
+        #     interpreter.good_commands,
+        # )
         # self.lookup_table.ref_sink()
-        super(RecogPipeEngine, self).__init__()
+        super(ListenerEngine, self).__init__()
 
     processing = None
+    no_space = False
 
     def do_focus_in(self):
         log.debug("engine received focus")
         # IBus.Engine.do_focus_in(self)
         self.wanted = True
         self.register_properties(self.properties)
-        self.hide_lookup_table()
+        # self.hide_lookup_table()
         self.hide_preedit_text()
         if not self.processing:
             self.processing = threading.Thread(
@@ -149,16 +150,30 @@ class RecogPipeEngine(IBus.Engine):
         """We have received an event, update IBus with the details"""
         if not event.get('partial'):
             transcript = self.first_transcript(event)
-            if transcript['text'].strip() in ('', 'he'):
-                return
-            best_guess = transcript['text']
+            # ick, 'he' is the default in the particular 0.7.3 released language model... meh
+            to_send = []
+            log.debug('Words: %s', transcript['words'])
+            for word in transcript['words']:
+                if word == '^':
+                    self.no_space = True
+                elif isinstance(word, str):
+                    if not self.no_space:
+                        to_send.append(' ')
+                    to_send.append(word)
+                    self.no_space = False
+                else:
+                    log.info("Should do key-forwarding or the like here: %s", word)
+                    # When we do meta-manipulation we have "tapped a key"
+                    self.no_space = True
             # TODO: if confidence below some threshold, then we want to
             # show options, but that doesn't seem to work at all :(
             # best_guess = interpreter.words_to_text(
             #     interpreter.apply_rules(best_guess,self.interpreter_rules)
             # )
             # log.debug("> %s", best_guess)
-            self.commit_text(IBus.Text.new_from_string(best_guess))
+            block = ''.join(to_send)
+            log.debug('> %s', block)
+            self.commit_text(IBus.Text.new_from_string(''.join(block)))
 
     def first_transcript(self, event):
         for transcript in event['transcripts']:
@@ -203,10 +218,10 @@ def register_engine(bus, live=False):
         license='LGPL',
         author='Mike C. Fletcher',
         homepage='https://github.com/mcfletch/deepspeech-docker',
-        command_line='recogpipe-ibus -r',
+        command_line='listener-ibus -r',
         textdomain='en',  # TODO: is this language?
     )
-    component.add_engine(RecogPipeEngine.DESCRIPTION)
+    component.add_engine(ListenerEngine.DESCRIPTION)
     connection = bus.get_connection()
     assert connection, "IBus has no connection"
     factory = IBus.Factory.new(connection)
@@ -222,6 +237,7 @@ def register_engine(bus, live=False):
                 MAINLOOP.quit()
 
         def set_engine():
+            log.info("Registering IBus Service at %s", SERVICE_NAME)
             bus.set_global_engine_async(
                 SERVICE_NAME,
                 5000,  # shouldn't take this long!
@@ -260,6 +276,7 @@ def main():
     # TODO: we should be checking the result here, the sync method just times out
     # but the async one seems to work, just takes a while
     log.debug("Starting mainloop")
+    GLib.idle_add(register_engine, bus, False)
     mainloop.run()
 
 

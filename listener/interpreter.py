@@ -1,6 +1,6 @@
 """Provide for the interpretation of incoming utterances based on user provided rules
 """
-import re, logging, os
+import re, logging, os, json
 from . import defaults
 
 HERE = os.path.dirname(__file__)
@@ -9,20 +9,35 @@ BUILTINS = os.path.join(HERE, 'rulesets')
 log = logging.getLogger(__name__)
 
 
+class MissingRules(OSError):
+    """Raised if we cannot find the rules-file"""
+
+
+def does_not_escape(base, relative):
+    """Check that relative does not escape from base (return combined or raise error)"""
+    base = base.rstrip('/')
+    if not base:
+        raise ValueError("Need a non-root base path")
+    combined = os.path.abspath(os.path.normpath(os.path.join(base, relative)))
+    root = os.path.abspath(os.path.normpath(base))
+    if os.path.commonpath([root, combined]) != root:
+        raise ValueError(
+            "Path %r would escape from %s, not allowed" % (relative, base,)
+        )
+    return combined
+
+
 def named_ruleset_file(relative):
-    if os.path.isabs(relative):
-        raise RuntimeError("Need a search-path fragment", relative)
-    combined = os.path.join(defaults.CONTEXT_DIR, relative)
-    if os.path.commonpath([defaults.CONTEXT_DIR, combined]) != defaults.CONTEXT_DIR:
-        raise RuntimeError("Path would escape the rulesets directory", relative)
+    assert relative is not None
     for source in [
-        os.path.join(defaults.CONTEXT_DIR, '%s.rules' % (relative,)),
-        os.path.join(BUILTINS, '%s.rules' % (relative,)),
+        does_not_escape(defaults.CONTEXT_DIR, '%s.rules' % (relative,)),
+        does_not_escape(BUILTINS, '%s.rules' % (relative,)),
     ]:
         if os.path.exists(source):
             return source
     log.warning('Unable to find rules-file for %s', relative)
-    return None
+    raise MissingRules(relative)
+    # return None
 
 
 def text_entry_rule(match, target):
@@ -170,8 +185,12 @@ def iter_rules(name, includes=False):
             line = line.strip()
             if line.startswith('#include '):
                 if includes:
-                    for pattern, target, sub_name in iter_rules(line[9:].strip()):
-                        yield pattern, target, sub_name
+                    try:
+                        for pattern, target, sub_name in iter_rules(line[9:].strip()):
+                            yield pattern, target, sub_name
+                    except MissingRules as err:
+                        err.args += ('included from %s#%i' % (name, i + 1),)
+                        raise
                 else:
                     log.info("Ignoring include: %s", line)
             if (not line) or line.startswith('#'):
@@ -270,20 +289,127 @@ def words_to_text(words):
     return ''.join(result)
 
 
+class Context(object):
+    def __init__(self, name):
+        self.name = name
+        if name == 'core':
+            self.directory = os.path.join(HERE, 'contexts', name)
+        else:
+            self.directory = os.path.join(defaults.CONTEXT_DIR, name)
+        self.config_file = os.path.join(self.directory, 'config.json')
+        self.load_config()
+
+    def load_config(self):
+        if os.path.exists(self.config_file):
+            self.config = json.loads(open(self.config_file).read())
+        else:
+            self.config = {}
+
+    def save_config(self):
+        if self.name == 'core':
+            return False
+        content = json.dumps(self.config, indent=2, sort_keys=True)
+        with open(self.config_file + '~', 'w') as fh:
+            fh.write(content)
+        os.rename(self.config_file + '~', self.config_file)
+        return True
+
+    _scorers = None
+
+    @property
+    def scorers(self):
+        """Load our scorer model (a KenLM model by default)"""
+        if self._scorers is None:
+            import kenlm
+
+            models = []
+            for source in self.config.get('scorers', [defaults.CACHED_SCORER_FILE]):
+                model = kenlm.Model(source)
+                models.append(model)
+            self._scorers = models
+        return self._scorers
+
+    _rules = None
+    _ruleset = None
+
+    @property
+    def rules(self):
+        if self._rules is None:
+            self._rules, self._rule_set = load_rules(
+                self.config.get('rules', 'default')
+            )
+        return self._rules
+
+    def score(self, event):
+        estimates = []
+        for scorer in self.scorers:
+            # Show scores and n-gram matches
+            for transcript in event['transcripts']:
+                log.debug("Trans: %r", transcript['text'])
+                score = scorer.score(transcript['text'])
+                estimates.append((score, transcript))
+        return sorted(estimates)
+
+    def apply_rules(self, event):
+        rules = self.rules
+        for transcript in event['transcripts']:
+            original = transcript['words'][:]
+            new_words = apply_rules(transcript['words'], rules)
+            if new_words != original:
+                transcript['text'] = words_to_text(new_words)
+                transcript['words'] = new_words
+            log.debug("%r => %r", words_to_text(original), transcript['text'])
+            break
+        return event
+
+
+def get_options():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='Run the interpreter outside of the DBus service',
+    )
+    parser.add_argument(
+        '-s',
+        '--scorer',
+        default=False,
+        action='store_true',
+        help='If specified, then just do score debugging and do not produce clean events',
+    )
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        default=False,
+        action='store_true',
+        help='Enable verbose logging (for developmen/debugging)',
+    )
+    return parser
+
+
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    options = get_options().parse_args()
+    defaults.setup_logging(options)
     from . import eventreceiver, eventserver
     import json
 
-    rules, rule_set = load_rules('default')
-    queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
+    context = Context('core')
+    if not options.scorer:
+        queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
+    else:
+        queue = None
     for event in eventreceiver.read_from_socket(
         sockname=defaults.RAW_EVENTS, connect_backoff=2.0,
     ):
         if not event.get('partial'):
-            for transcript in event['transcripts']:
-                new_words = apply_rules(transcript['words'], rules)
-                transcript['text'] = words_to_text(new_words)
-                transcript['words'] = new_words
-                break
-            queue.put(event)
+            # TODO: Need a better way to exclude silence and small speaking pops
+            # The DeepSpeech language model basically has 'he' as the result for
+            # lots of breath and pop sounds, but that's just an artifact of this
+            # particular language model rather than the necessary result of hearing
+            # the pop
+            if event['transcripts'][0]['words'] in ([''], ['he']):
+                continue
+            if not options.scorer:
+                event = context.apply_rules(event)
+                queue.put(event)
+            else:
+                context.score(event)

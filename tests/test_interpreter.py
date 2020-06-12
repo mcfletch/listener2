@@ -1,5 +1,5 @@
 import unittest
-from recogpipe import interpreter
+from listener import interpreter
 
 
 class TestInterpreter(unittest.TestCase):

@@ -1,4 +1,4 @@
-Welcome to RecogPipe's documentation!
+Welcome to Listener's documentation!
 ======================================
 
 .. toctree::

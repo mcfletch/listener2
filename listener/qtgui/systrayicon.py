@@ -7,7 +7,7 @@ HERE = os.path.dirname(os.path.abspath((__file__)))
 ICON_DIR = os.path.normpath(os.path.join(HERE, '../static'))
 
 
-class RecogPipeSystrayIcon(QtWidgets.QSystemTrayIcon):
+class ListenerSystrayIcon(QtWidgets.QSystemTrayIcon):
     """Presents systray icon showing current recording state"""
 
     ICONS = {
@@ -45,7 +45,7 @@ class RecogPipeSystrayIcon(QtWidgets.QSystemTrayIcon):
 def main():
     logging.basicConfig(level=logging.DEBUG)
     app = QtWidgets.QApplication([])
-    icon = RecogPipeSystrayIcon()
+    icon = ListenerSystrayIcon()
     icon.set_state('stopped')
     icon.setVisible(True)
     timer = QtCore.QTimer(icon)

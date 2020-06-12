@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-"""Qt GUI Application for controlling RecogPipe"""
+"""Qt GUI Application for controlling Listener"""
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import systrayicon
 import sys, os, logging, subprocess, threading, time
@@ -7,11 +7,11 @@ import sys, os, logging, subprocess, threading, time
 HERE = os.path.dirname(os.path.abspath((__file__)))
 
 
-class RecogPipeApp(QtWidgets.QApplication):
+class ListenerApp(QtWidgets.QApplication):
     wanted = True
 
     def __init__(self, argv, *args, **named):
-        super(RecogPipeApp, self).__init__(argv)
+        super(ListenerApp, self).__init__(argv)
         self.load_config()
         self.audio_hw = 'hw:1,0'
         self.check_ibus()
@@ -47,12 +47,12 @@ class RecogPipeApp(QtWidgets.QApplication):
         """Get the application's configuration"""
 
     def create_systray(self):
-        self.systray = systrayicon.RecogPipeSystrayIcon()
+        self.systray = systrayicon.ListenerSystrayIcon()
         self.systray.set_state('stopped')
         self.systray.show()
         menu = QtWidgets.QMenu()
-        action = menu.addAction(QtGui.QIcon('exit'), 'Quit RecogPipe',)
-        action.setStatusTip('Exit recogpipe')
+        action = menu.addAction(QtGui.QIcon('exit'), 'Quit Listener',)
+        action.setStatusTip('Exit listener')
         action.triggered.connect(self.cleanup)
         # QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Quit)
 
@@ -70,7 +70,7 @@ class RecogPipeApp(QtWidgets.QApplication):
     def run_ibus_engine(self):
         while self.wanted:
             command = [
-                'recogpipe-ibus',
+                'listener-ibus',
                 '-v',
             ]
             pipe = subprocess.Popen(command,)
@@ -80,7 +80,7 @@ class RecogPipeApp(QtWidgets.QApplication):
     def run_audio_pipe(self):
         while self.wanted:
             command = [
-                'recogpipe-audio',
+                'listener-audio',
             ]
             pipe = subprocess.Popen(command,)
             while pipe.poll() is None and self.wanted:
@@ -96,7 +96,7 @@ log = logging.getLogger(__name__)
 def get_options():
     import argparse
 
-    parser = argparse.ArgumentParser(description='RecogPipe GUI front-end in PySide2')
+    parser = argparse.ArgumentParser(description='Listener GUI front-end in PySide2')
     parser.add_argument(
         '-v',
         '--verbose',
@@ -113,7 +113,7 @@ def main():
         level=logging.DEBUG if options.verbose else logging.WARNING,
         format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
     )
-    app = RecogPipeApp([])
+    app = ListenerApp([])
 
     sys.exit(app.exec_())
 

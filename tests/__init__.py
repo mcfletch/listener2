@@ -1,1 +1,1 @@
-"""Unit test package for recogpipe."""
+"""Unit test package for listener."""

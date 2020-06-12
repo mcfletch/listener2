@@ -15,10 +15,6 @@ from . import defaults
 log = logging.getLogger(__name__)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-RELEASE_URL = 'https://github.com/mozilla/DeepSpeech/releases/download/v%(version)s/'
-MODEL_FILE = 'deepspeech-%(version)s-models.pbmm'
-SCORER_FILE = 'deepspeech-%(version)s-models.scorer'
-
 
 def cache_models(
     version=defaults.DEFAULT_DEEPSPEECH_VERSION, cache_dir=defaults.MODEL_CACHE
@@ -29,13 +25,13 @@ def cache_models(
     less frequently than the deep speech code itself
     """
     for template in [
-        MODEL_FILE,
-        SCORER_FILE,
+        defaults.MODEL_FILE,
+        defaults.SCORER_FILE,
     ]:
         filename = template % locals()
         local = os.path.join(cache_dir, filename)
         if not os.path.exists(local):
-            url = (RELEASE_URL % locals()) + filename
+            url = (defaults.RELEASE_URL % locals()) + filename
             log.warning(
                 'Downloading %s => %s', url, local,
             )

@@ -14,7 +14,7 @@ clients may onto the events unix socket in the same directory
 to receive the partial and final event json records.
 """
 from deepspeech import Model, version
-from recogpipe import eventserver
+from listener import eventserver
 import logging, os, sys, select, json, socket, queue, collections, time
 import numpy as np
 import webrtcvad
@@ -22,7 +22,7 @@ from . import defaults
 
 import threading
 
-log = logging.getLogger(__name__ if __name__ != '__main__' else 'recogpipe')
+log = logging.getLogger(__name__ if __name__ != '__main__' else 'listener')
 
 # How long of leading silence causes it to be discarded?
 FRAME_SIZE = (defaults.SAMPLE_RATE // 1000) * 20  # rate of 16000, so 16samples/ms
@@ -42,7 +42,7 @@ def metadata_to_json(metadata, partial=False):
 
 
 def transcript_to_json(transcript, partial=False):
-    """Convert DeepSpeect Transcript struct to a json-compatible format"""
+    """Convert DeepSpeech Transcript struct to a json-compatible format"""
     struct = {
         'partial': partial,
         'final': not partial,
@@ -312,7 +312,7 @@ def get_options():
         '--scorer',
         default='/src/model/deepspeech-%s-models.scorer'
         % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
-        help='DeepSpeect published scorer',
+        help='DeepSpeech published scorer, use "" to not apply the Language Model within the daemon (letting the interpreter handle the scoring)',
     )
     parser.add_argument(
         '--beam-width',

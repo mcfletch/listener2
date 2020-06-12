@@ -13,20 +13,20 @@ Requirements:
 
 Get the source code::
 
-    git clone https://github.com/mcfletch/deepspeech-docker.git
-    cd deepspeech-docker
+    git clone https://github.com/mcfletch/listener2.git
+    cd listener2
 
 Start the Docker Service
 -------------------------
 
-The docker service is setup and managed by a script called `recogpipe-docker`
+The docker service is setup and managed by a script called `listener-docker`
 which arranges for the model files to be downloaded and cached,
 builds the docker container, and then runs it::
 
     # Note, depends on having the dependencies listed in 
     # `dependencies.txt` installed
     python3 setup.py develop --user
-    recogpipe-docker
+    listener-docker
 
 Note: your user must be in both the `docker` and `video` groups
 to allow you to start docker containers and access the nvidia graphics
@@ -35,44 +35,38 @@ card.
 Piping Audio Into the Daemon
 ----------------------------
 
-Feed some data into the daemon from your ALSA microphone::
+The `listener-audio` application runs `pacat` to send pulseaudio
+content to the daemon. You can also look at the `ffmpeg-audio.sh`
+script if you'd like to devise a different method for sending the
+content to the docker daemon.
 
-    ffmpeg-audio.sh hw:1,0
+Change the Audio Source 
+........................
 
-You can find the hardware identifier for your microphone by running::
+`listener-audio` is using pacat, so you can
+control the input via your desktop's standard Pulse Audio 
+controls.
 
-    mcfletch@tanis:~/ai-dev/deepspeech-docker$ arecord -l
-    **** List of CAPTURE Hardware Devices ****
-    card 0: PCH [HDA Intel PCH], device 0: CX8070 Analog [CX8070 Analog]
-    Subdevices: 1/1
-    Subdevice #0: subdevice #0
-    card 1: DSP [Plantronics .Audio 626 DSP], device 0: USB Audio [USB Audio]
-    Subdevices: 0/1
-    Subdevice #0: subdevice #0he
+On KDE desktops, to change the microphone used, run:
 
-Here there are two capture 
-devices available, the first being a built in analog microphone and the second 
-being a cheap Plantronics USB headset microphone.
-For each entry the values `Card 0` and `device 0` tell you a hardware
-identifier, `hw:0,0` and `hw:1,0` respectively. 
+* `listener-docker`
+* `listener-audio`
 
-Alternately, feed some data into the daemon from a wav file (transcribe it)::
-
-    ffmpeg-sample.sh path/to/your/file.wav
-
-note that the audio will begin transcribing immediately, so you will,
-likely lose the first few utterances.
+then right-click on your audio icon in the systray, choose 
+`Configure Audio Volume | Audio Volume | Applications` and next to 
+`listener-microphone: recogniser` choose your preferred input 
+for the audio.
 
 Debugging
 ..........
 
+Viewing the logs of the transcripts from within the daemon::
+
+    docker logs "listener_${USER}"
+
 Viewing the raw transcripts from the dockerised daemon with netcat::
 
-    nc -U /run/user/`id -u`/recogpipe/events
-
-Running the ibus engine interactively::
-
-    recogpipe-ibus -v
+    nc -U /run/user/`id -u`/listener/events
 
 
 IBus (Input Method Engine)
@@ -83,7 +77,8 @@ Running the IBus daemon on your desktop (not in the docker container)::
     apt install $(cat dependencies.txt)
     # Enable IBus in your desktop, in KDE run `IBus Preferences`
     # See Below for details
-    recogpipe-ibus
+    listener-ibus
+
 
 
 IBus Running on your Desktop

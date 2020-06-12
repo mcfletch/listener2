@@ -1,6 +1,6 @@
-RecogPipe Modules
+Listener Modules
 ==================
 
-.. automodule:: recogpipe.dockersetup
+.. automodule:: listener.dockersetup
 
-.. automodule:: recogpipe.ibusengine
+.. automodule:: listener.ibusengine

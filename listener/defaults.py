@@ -10,7 +10,7 @@ def get_username():
 HERE = os.path.dirname(os.path.abspath(__file__))
 LISTENER_SOURCE = HERE
 
-APP_NAME = 'recogpipe'
+APP_NAME = 'listener'
 
 USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
 USER_CACHE_DIR = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
@@ -26,11 +26,19 @@ CONTEXT_DIR = os.path.join(CONFIG_DIR, 'contexts')
 
 CACHE_DIR = os.path.join(USER_CACHE_DIR, APP_NAME)
 MODEL_CACHE = os.path.join(CACHE_DIR, 'model')
+DEFAULT_DEEPSPEECH_VERSION = '0.7.3'
+RELEASE_URL = 'https://github.com/mozilla/DeepSpeech/releases/download/v%(version)s/'
+MODEL_FILE = 'deepspeech-%(version)s-models.pbmm'
+SCORER_FILE = 'deepspeech-%(version)s-models.scorer'
+
+CACHED_SCORER_FILE = os.path.join(
+    MODEL_CACHE, SCORER_FILE % {'version': DEFAULT_DEEPSPEECH_VERSION,}
+)
+
 
 RAW_EVENTS = os.path.join(RUN_DIR, 'events')
 FINAL_EVENTS = os.path.join(RUN_DIR, 'clean-events')
 
-DEFAULT_DEEPSPEECH_VERSION = '0.7.3'
 
 DOCKER_CONTAINER = '%s_%s' % (APP_NAME, get_username())
 DOCKER_IMAGE = '%s-server' % (APP_NAME,)

@@ -11,7 +11,7 @@ def get_options():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Use ALSA arecord to pipe audio to recogpipe',
+        description='Use ALSA arecord to pipe audio to listener',
     )
     parser.add_argument(
         '-t',
@@ -36,6 +36,9 @@ def main():
     directory = os.path.dirname(target)
     if not os.path.exists(target):
         log.info("Creating fifo in %s", target)
+        directory = os.path.dirname(target)
+        if not os.path.exists(directory):
+            os.makedirs(directory, 0o700)
         os.mkfifo(target)
     command = [
         'parec',

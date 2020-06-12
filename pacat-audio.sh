@@ -9,4 +9,4 @@ parec \
     --record \
     --client-name recgpipe-microphone \
     --stream-name primary \
-    /run/user/`id -u`/recogpipe/audio
+    /run/user/`id -u`/listener/audio

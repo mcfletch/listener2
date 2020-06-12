@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use RecogPipe in a project::
+To use Listener in a project::
 
-    import recogpipe
+    import listener

@@ -1,9 +1,10 @@
 """Simple iterative reading of an open socket to produce events"""
 import socket, logging, time, json, select, os
+from . import defaults
 
 log = logging.getLogger(__name__)
 
-DEFAULT_SOCKET = '/run/user/%s/recogpipe/events' % (os.geteuid())
+DEFAULT_SOCKET = defaults.RAW_EVENTS
 
 
 def debug_event(event):

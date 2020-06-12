@@ -9,7 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=.
 set BUILDDIR=_build
-set SPHINXPROJ=recogpipe
+set SPHINXPROJ=listener
 
 if "%1" == "" goto help
 

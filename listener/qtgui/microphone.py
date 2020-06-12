@@ -1,5 +1,5 @@
 class Microphone(QtMultimedia.QAudioRecorder):
-    """Attempt to use qt multimedia to feed recogpipe
+    """Attempt to use qt multimedia to feed listener
     
     mic = Microphone()
     # mic.choose_default()
@@ -16,9 +16,9 @@ class Microphone(QtMultimedia.QAudioRecorder):
         self.setEncodingSettings(settings)
 
     def default_pipe(self):
-        path = '/run/user/%s/recogpipe/audio' % os.geteuid()
+        path = '/run/user/%s/listener/audio' % os.geteuid()
         if os.path.exists(path):
             self.setOutputLocation(QtCore.QUrl.fromLocalFile(path))
             return True
         else:
-            log.warning("RecogPipe is not currently listening")
+            log.warning("Listener is not currently listening")
