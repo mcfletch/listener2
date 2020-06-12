@@ -10,31 +10,19 @@ so this should not be considered a safe operation on a multi user host
 but should be reasonable on a single seat device.
 """
 import subprocess, os, sys, logging, requests, glob
+from . import defaults
 
 log = logging.getLogger(__name__)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-USER_CACHE_DIR = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-CACHE_DIR = os.path.join(USER_CACHE_DIR, 'recogpipe')
-MODEL_CACHE = os.path.join(CACHE_DIR, 'model')
-DEFAULT_VERSION = '0.7.3'
 RELEASE_URL = 'https://github.com/mozilla/DeepSpeech/releases/download/v%(version)s/'
 MODEL_FILE = 'deepspeech-%(version)s-models.pbmm'
 SCORER_FILE = 'deepspeech-%(version)s-models.scorer'
 
-USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
-RUN_DIR = os.path.join(USER_RUN_DIR, 'recogpipe')
-DEFAULT_INPUT = os.path.join(RUN_DIR, 'audio')
 
-
-def get_username():
-    """get the current users user name"""
-    import pwd
-
-    return pwd.getpwuid(os.geteuid()).pw_name
-
-
-def cache_models(version=DEFAULT_VERSION, cache_dir=MODEL_CACHE):
+def cache_models(
+    version=defaults.DEFAULT_DEEPSPEECH_VERSION, cache_dir=defaults.MODEL_CACHE
+):
     """Cache the deepspeech models in user's cache directory
     
     the deep speech models are quite large files which are updated
@@ -119,18 +107,20 @@ def get_options():
     parser.add_argument(
         '-r',
         '--run',
-        default=RUN_DIR,
-        help='Directory in which to mount audio input pipe, default: %s' % (RUN_DIR,),
+        default=defaults.RUN_DIR,
+        help='Directory in which to mount audio input pipe, default: %s'
+        % (defaults.RUN_DIR,),
     )
     parser.add_argument(
         '--cache',
-        default=CACHE_DIR,
-        help='User model cache directory (default: %s)' % (CACHE_DIR,),
+        default=defaults.CACHE_DIR,
+        help='User model cache directory (default: %s)' % (defaults.CACHE_DIR,),
     )
     parser.add_argument(
         '--version',
-        default=DEFAULT_VERSION,
-        help='DeepSpeech version/release to use (default: %s)' % (DEFAULT_VERSION,),
+        default=defaults.DEFAULT_DEEPSPEECH_VERSION,
+        help='DeepSpeech version/release to use (default: %s)'
+        % (defaults.DEFAULT_DEEPSPEECH_VERSION,),
     )
     parser.add_argument(
         '-b',
@@ -159,9 +149,9 @@ def main():
     options = get_options().parse_args()
     model_cache = os.path.join(options.cache, 'model')
     cache_models(version=options.version, cache_dir=model_cache)
-    docker_name = 'recogpipe_%s' % (get_username())
+    docker_name = defaults.DOCKER_CONTAINER
     images = (
-        subprocess.check_output(['docker', 'images', 'deepspeech-client'])
+        subprocess.check_output(['docker', 'images', defaults.DOCKER_IMAGE])
         .decode('utf-8')
         .strip()
         .splitlines()
@@ -175,9 +165,9 @@ def main():
             '--build-arg',
             'UID=%s' % (os.geteuid(),),
             '-t',
-            'recogpipe-server:%s' % (options.version,),
+            '%s:%s' % (defaults.DOCKER_IMAGE, options.version,),
             '-t',
-            'recogpipe-server:latest',
+            '%s:latest' % (defaults.DOCKER_IMAGE,),
             os.path.join(HERE, '../docker'),
         ]
         subprocess.check_call(command)
@@ -215,10 +205,10 @@ def main():
             '-v%s:/src/model' % (os.path.abspath(model_cache),),
             '-eDEEPSPEECH_VERSION=%s' % (options.version,),
             '--name',
-            'recogpipe_%s' % (get_username()),
+            defaults.DOCKER_CONTAINER,
         ]
         + devices
-        + ['recogpipe-server:%s' % (options.version,),]
+        + ['%s:%s' % (defaults.DOCKER_IMAGE, options.version,),]
         + shell
     )
     log.info("%s", " ".join(command))

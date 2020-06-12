@@ -10,7 +10,7 @@ def main():
     user = pwd.getpwnam('deepspeech')
     os.setuid(user.pw_gid)
     os.setuid(user.pw_uid)
-    command = ['recogpipe-daemon'] + sys.argv[1:]
+    command = ['recogpipe-daemon', '-v'] + sys.argv[1:]
     os.execvp(command[0], command)
 
 

@@ -1,11 +1,10 @@
 #! /usr/bin/env python3
-"""Non-working attempt to get a clean/signal-able ffmpeg to named pipe pipeline"""
+"""Low level process to create an pulse-audio feed into the recogniser daemon"""
 import os, subprocess, logging, time, re
 from . import defaults
 
 log = logging.getLogger(__name__)
-
-DEFAULT_TARGET = '/run/user/%s/recogpipe/audio' % (os.geteuid(),)
+DEFAULT_TARGET = defaults.DEFAULT_INPUT
 
 
 def get_options():
@@ -42,7 +41,7 @@ def main():
         'parec',
         '-v',
         '--rate',
-        '16000',
+        str(defaults.SAMPLE_RATE),
         '--format',
         's16le',
         '--channels',
@@ -50,9 +49,9 @@ def main():
         '--raw',
         '--record',
         '--client-name',
-        'recgpipe-microphone',
+        '%s-microphone' % (defaults.APP_NAME,),
         '--stream-name',
-        'primary',
+        'recogniser',
         target,
     ]
     log.info("Command: %s", " ".join(command))

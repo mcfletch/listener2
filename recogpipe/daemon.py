@@ -25,8 +25,7 @@ import threading
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'recogpipe')
 
 # How long of leading silence causes it to be discarded?
-SAMPLE_RATE = 16000
-FRAME_SIZE = (SAMPLE_RATE // 1000) * 20  # rate of 16000, so 16samples/ms
+FRAME_SIZE = (defaults.SAMPLE_RATE // 1000) * 20  # rate of 16000, so 16samples/ms
 SILENCE_FRAMES = 10  # in 20ms frames
 
 
@@ -81,7 +80,7 @@ def transcript_to_json(transcript, partial=False):
 class RingBuffer(object):
     """Crude numpy-backed ringbuffer"""
 
-    def __init__(self, duration=30, rate=SAMPLE_RATE):
+    def __init__(self, duration=30, rate=defaults.SAMPLE_RATE):
         self.duration = duration
         self.rate = rate
         self.size = duration * rate
@@ -140,7 +139,7 @@ class RingBuffer(object):
 def produce_voice_runs(
     input,
     read_frames=2,
-    rate=SAMPLE_RATE,
+    rate=defaults.SAMPLE_RATE,
     silence=SILENCE_FRAMES,
     voice_detect_aggression=3,
 ):
@@ -212,7 +211,12 @@ def produce_voice_runs(
 
 
 def run_recognition(
-    model, input, out_queue, read_size=320, rate=SAMPLE_RATE, max_decode_rate=4,
+    model,
+    input,
+    out_queue,
+    read_size=320,
+    rate=defaults.SAMPLE_RATE,
+    max_decode_rate=4,
 ):
     """Read fragments from input, write results to output
     
@@ -236,7 +240,7 @@ def run_recognition(
         out_queue.put(metadata)
 
 
-def iter_metadata(model, input, rate=SAMPLE_RATE, max_decode_rate=4):
+def iter_metadata(model, input, rate=defaults.SAMPLE_RATE, max_decode_rate=4):
     """Iterate over input producing transcriptions with model"""
     stream = model.createStream()
     length = last_decode = 0
@@ -341,6 +345,8 @@ def process_input_file(conn, options, out_queue, background=True):
     if options.beam_width:
         model.setBeamWidth(options.beam_width)
     desired_sample_rate = model.sampleRate()
+    if desired_sample_rate != defaults.SAMPLE_RATE:
+        log.error("Model expects rate of %s", desired_sample_rate)
     if options.scorer:
         model.enableExternalScorer(options.scorer)
     else:

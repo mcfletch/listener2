@@ -1,10 +1,41 @@
 """Constants and shared definitions"""
-import os, logging
+import os, logging, pwd
+
+
+def get_username():
+    """get the current users user name"""
+    return pwd.getpwuid(os.geteuid()).pw_name
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+LISTENER_SOURCE = HERE
+
+APP_NAME = 'recogpipe'
 
 USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
-RUN_DIR = os.path.join(USER_RUN_DIR, 'recogpipe')
+USER_CACHE_DIR = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+
+
+RUN_DIR = os.path.join(USER_RUN_DIR, APP_NAME)
 DEFAULT_INPUT = os.path.join(RUN_DIR, 'audio')
 DEFAULT_OUTPUT = os.path.join(RUN_DIR, 'events')
+
+USER_CONFIG_DIR = os.environ.get('XDG_CONFIG_DIR', os.path.expanduser('~/.config/'))
+CONFIG_DIR = os.path.join(USER_CONFIG_DIR, APP_NAME)
+CONTEXT_DIR = os.path.join(CONFIG_DIR, 'contexts')
+
+CACHE_DIR = os.path.join(USER_CACHE_DIR, APP_NAME)
+MODEL_CACHE = os.path.join(CACHE_DIR, 'model')
+
+RAW_EVENTS = os.path.join(RUN_DIR, 'events')
+FINAL_EVENTS = os.path.join(RUN_DIR, 'clean-events')
+
+DEFAULT_DEEPSPEECH_VERSION = '0.7.3'
+
+DOCKER_CONTAINER = '%s_%s' % (APP_NAME, get_username())
+DOCKER_IMAGE = '%s-server' % (APP_NAME,)
+
+SAMPLE_RATE = 16000
 
 
 def setup_logging(options):
