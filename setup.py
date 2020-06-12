@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-import os
+import os, sys
 
+if sys.version_info.major < 3:
+    raise RuntimeError('Listener uses Python3-only features')
 HERE = os.path.dirname(os.path.abspath(__file__))
 from setuptools import setup, find_packages
 
@@ -55,7 +57,7 @@ if __name__ == "__main__":
         setup_requires=setup_requirements,
         test_suite='tests',
         tests_require=test_requirements,
-        url='https://github.com/mcfletch/listener',
+        url='https://github.com/mcfletch/listener2',
         version='2.0.0a1',
         zip_safe=False,
     )
