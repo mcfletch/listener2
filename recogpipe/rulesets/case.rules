@@ -1,0 +1,13 @@
+# Case manipulation
+all caps ${phrase}  => all_caps()
+all cap ${phrase}  => all_caps()
+title ${phrase} => title()
+titlecaps $ {phrase} => title()
+
+cap ${word} => title()
+caps ${word} => title()
+capital ${word} => title()
+constant ${phrase} => constant()
+camel case ${phrase} => camel()
+camelcaps $ {phrase} => camel()
+

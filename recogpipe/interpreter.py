@@ -1,17 +1,35 @@
-"""provide for the interpretation of incoming utterances based on user provided rules
-
-
+"""Provide for the interpretation of incoming utterances based on user provided rules
 """
 import re, logging, os
+from . import defaults
+
+HERE = os.path.dirname(__file__)
+BUILTINS = os.path.join(HERE, 'rulesets')
 
 log = logging.getLogger(__name__)
 
 
-def text_entry_rule(match, replace):
+def named_ruleset_file(relative):
+    if os.path.isabs(relative):
+        raise RuntimeError("Need a search-path fragment", relative)
+    combined = os.path.join(defaults.CONTEXT_DIR, relative)
+    if os.path.commonpath([defaults.CONTEXT_DIR, combined]) != defaults.CONTEXT_DIR:
+        raise RuntimeError("Path would escape the rulesets directory", relative)
+    for source in [
+        os.path.join(defaults.CONTEXT_DIR, '%s.rules' % (relative,)),
+        os.path.join(BUILTINS, '%s.rules' % (relative,)),
+    ]:
+        if os.path.exists(source):
+            return source
+    log.warning('Unable to find rules-file for %s', relative)
+    return None
+
+
+def text_entry_rule(match, target):
     """Create a rule from the text-entry mini-language"""
-    no_space_before = replace.startswith('^')
-    no_space_after = replace.endswith('^')
-    text = bytes(replace.strip('^')[1:-1], 'utf-8').decode('unicode_escape')
+    no_space_before = target.startswith('^')
+    no_space_after = target.endswith('^')
+    text = bytes(target.strip('^')[1:-1], 'utf-8').decode('unicode_escape')
 
     def apply_rule(words, start_index=0, end_index=-1):
         """Given a match on the rule, produce modified result"""
@@ -28,13 +46,28 @@ def text_entry_rule(match, replace):
     apply_rule.__name__ = 'text_entry_%s' % ("_".join(match))
     apply_rule.match = match
     apply_rule.text = text
-    apply_rule.replace = replace
+    apply_rule.target = target
     apply_rule.no_space_after = no_space_after
     apply_rule.no_space_before = no_space_before
     return apply_rule
 
 
-def transform_rule(match, transformation):
+def null_transform(words):
+    """Used when the user references an unknown transformation"""
+    return words
+
+
+def transform_rule(match, target):
+    no_space_before = target.startswith('^')
+    no_space_after = target.endswith('^')
+    try:
+        transformation = NAMED_RULES[target.rstrip('()')]
+    except KeyError:
+        log.error(
+            "The rule %s => %s references an unknown function", " ".join(match), target
+        )
+        transformation = null_transform
+
     phrase = match[-1] == PHRASE_MARKER
     word = match[-1] == WORD_MARKER
 
@@ -51,134 +84,20 @@ def transform_rule(match, transformation):
 
     apply_rule.__name__ = 'transform_entry_%s' % ("_".join(match))
     apply_rule.match = match
+    apply_rule.target = target
     apply_rule.text = None
+    apply_rule.no_space_after = no_space_after
+    apply_rule.no_space_before = no_space_before
+
     return apply_rule
 
 
-# General commands that already recognise well
-good_commands = '''
-# Typing characters
-new line => ^'\\n'^
-new paragraph => ^'\\n'^
-tab key => ^'\\t'^
-period => ^'.'
-dot => ^'.'^
-question mark => ^'?'
-exclamation mark => ^'!'
-open parentheses => '('^
-open parenthesis => '('^
-close parentheses => ^')'
-close parenthesis => ^')'
-underscore => ^'_'^
-open bracket => '['^
-close bracket => ^']'
-open quote => '"'^
-close quote => ^'"'
-quote quote => '""'
-open single quote => "'"^
-close single quote => ^"'"
-open triple quote => '"""'^
-close triple quote => ^'"""'
-triple start quote => '"""'^
-triple end quote => ^'"""'
-ampersand character => "&"
-and character => '&'
-and symbol => '&'
-or symbol => '|'
-or character => '|'
-pipe character => "|"
-backslash => ^'\\\\'^
-slash => ^'/'^
-slash slash => ^'//'
-space => ^' '^
-bang => ^'!'
-sharp symbol => ^'#'
-hash symbol => ^'#'
-at symbol => ^'@'^
-no space => ^''^
-comma => ^','
-colon => ^':'^
-semi colon => ^';'
-equals => '='
-equal sign => '='
-not equal => '!='
-double equal => '=='
-double equals => '=='
-dollar sign => ^'$'^
-per cent format ${name} => percent_format()
-percent format ${name} => percent_format()
-per cent => ^'%'^
-asterisk => ^'*'^
-asterisk character => '*'^ 
-asterisk asterisk  => '**'^
-plus character => '+'
-minus character => '-'
-hyphen => ^'-'^
-division character => '/'
-greater than => '>'
-less than => '<'
-ellipsis => ^'...'
-caret => ^'^'^ 
-caret symbol  => ^'^'^ 
-caret character => ^'^'^ 
-arrow symbol => '=>'
-back tick => '`'
-open brace => ^'{'^
-close brace => ^'}'^
-tilde => '~'^
+def format_rules(rules):
+    """Format ruleset into format for storage"""
+    for match, target in rules:
+        yield '%s => %s' % (' '.join(match), target)
 
-all caps ${phrase}  => all_caps()
-all cap ${phrase}  => all_caps()
-title ${phrase} => title()
-cap ${word} => title()
-caps ${word} => title()
-capital ${word} => title()
-constant ${phrase} => constant()
-camel case ${phrase} => camel()
-camel caps ${phrase} => camel()
-see name ${phrase} => camel_lower()
-underscore name ${phrase} => underscore_name()
-under name ${phrase} => underscore_name()
 
-# # Key symbol entry
-# press ${key} => \\key ${key}
-# press enter => \\key (Enter)
-# go up => \\key (Up)
-# go down => \\key (Down)
-# go left => \\key (Left)
-# go right => \\key (Right)
-# go home => \\key (Home)
-# go end => \\key (End)
-# indent => \\key (Tab)
-# reduce indent => \\key (Shift+Tab)
-# unselect => \\key (Escape)
-# escape => \\key (Escape)
-# alt ${word} => \\key (Alt+${word})
- 
-# caps on => caps_on()
-# caps off => caps_off()
-# spell that => correction()
-# type that => correction()
-# spell out => spell_on()
-# stop spell => spell_off()
-# spell stop =>  spell_off()
-# camel case => camel_on()
-# dunder ${phrase} => '_'^'_'^${phrase}^'_'^'_'
-
-# start listening => start()
-# wake up => start()
-# stop listening => stop()
-# go to sleep => stop()
-# undo that => undo()
-# correct that => correction()
-# scratch that => undo()
-# select left => \\key (Shift+Ctrl+Left)
-# select right => \\key (Sift+Ctrl+Left)
-# select ${number} words => \\key (Shift+Ctrl+Right)
-# select back ${number} words => \\key (Shift+Ctrl+Right)
-# select up line => \\key (Shift+Up)
-# select down line => \\key (Shift+Down)
-'''
 # General commands that don't recognise well
 BAD_COMMANDS = """
 press tab
@@ -221,9 +140,10 @@ def constant(words):
 def camel(words):
     result = []
     for word in words:
-        result.append(word)
+        result.append(word.title())
         result.append('^')
-    del result[-1]
+    if words:
+        del result[-1]
     return result
 
 
@@ -242,34 +162,47 @@ def percent_format(name):
     return ['%(', '^', name, '^', ')s']
 
 
-def iter_rules(command_set):
-    for i, line in enumerate(command_set.splitlines()):
-        line = line.strip()
-        if (not line) or line.startswith('#'):
-            continue
-        try:
-            pattern, target = line.split('=>', 1)
-        except ValueError as err:
-            log.warning("Unable to parse rule #%i: %r", i + 1, line)
-            continue
-        pattern = pattern.strip().split()
-        target = target.strip()
-        yield pattern, target
+def iter_rules(name, includes=False):
+    filename = named_ruleset_file(name)
+    if filename:
+        command_set = open(filename, encoding='utf-8').read()
+        for i, line in enumerate(command_set.splitlines()):
+            line = line.strip()
+            if line.startswith('#include '):
+                if includes:
+                    for pattern, target, sub_name in iter_rules(line[9:].strip()):
+                        yield pattern, target, sub_name
+                else:
+                    log.info("Ignoring include: %s", line)
+            if (not line) or line.startswith('#'):
+                continue
+            try:
+                pattern, target = line.split('=>', 1)
+            except ValueError as err:
+                log.warning("Unable to parse rule #%i: %r", i + 1, line)
+                continue
+            pattern = pattern.strip().split()
+            target = target.strip()
+            # log.debug("%s => %s", pattern, target)
+            yield pattern, target, name
 
 
-def load_rules(command_set, rules=None):
-    """load a set of commands from a string"""
+def load_rules(name, rules=None, includes=True):
+    """load a set of commands from a named rule-set"""
     rules = rules or {}
-    for pattern, target in iter_rules(command_set):
+    rule_order = []
+    for pattern, target, name in iter_rules(name, includes=True):
         branch = rules
         for word in pattern:
             branch = branch.setdefault(word, {})
-        if target.endswith('()'):
-            rule = transform_rule(pattern, NAMED_RULES[target[:-2]])
+        if target.strip('^').endswith('()'):
+            rule = transform_rule(pattern, target[:-2])
         else:
             rule = text_entry_rule(pattern, target)
         branch[None] = rule
-    return rules
+        rule.source = name
+        rule_order.append(rule)
+    return rules, rule_order
 
 
 # class Context(attr.s):
@@ -293,9 +226,9 @@ def match_rules(words, rules):
         for i, word in enumerate(words[start:]):
             if word in branch:
                 branch = branch[word]
-            elif WORD_MARKER in branch:
+            elif branch is not rules and WORD_MARKER in branch:
                 branch = branch[WORD_MARKER]
-            elif PHRASE_MARKER in branch:
+            elif branch is not rules and PHRASE_MARKER in branch:
                 branch = branch[PHRASE_MARKER]
                 break
             else:
@@ -337,19 +270,17 @@ def words_to_text(words):
     return ''.join(result)
 
 
-EVENTS = '/run/user/%s/recogpipe/events' % (os.geteuid())
-LIVE_EVENTS = '/run/user/%s/recogpipe/clean-events' % (os.geteuid())
-
-
 def main():
     logging.basicConfig(level=logging.DEBUG)
     from . import eventreceiver, eventserver
     import json
 
-    rules = load_rules(good_commands)
-    queue = eventserver.create_sending_threads(LIVE_EVENTS)
-    for event in eventreceiver.read_from_socket(sockname=EVENTS, connect_backoff=2.0,):
-        if event.get('final'):
+    rules, rule_set = load_rules('default')
+    queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
+    for event in eventreceiver.read_from_socket(
+        sockname=defaults.RAW_EVENTS, connect_backoff=2.0,
+    ):
+        if not event.get('partial'):
             for transcript in event['transcripts']:
                 new_words = apply_rules(transcript['words'], rules)
                 transcript['text'] = words_to_text(new_words)

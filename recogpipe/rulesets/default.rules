@@ -1,0 +1,112 @@
+# General dictation operations
+new line => ^'\n'^
+new paragraph => ^'\n'^
+tab key => ^'\t'^
+full stop => ^'.'
+period => ^'.'
+dot => ^'.'^
+question mark => ^'?'
+exclamation mark => ^'!'
+open parentheses => '('^
+open parenthesis => '('^
+open paren => '('^
+close parentheses => ^')'
+close parenthesis => ^')'
+close paren => ^')'
+underscore => ^'_'^
+open bracket => '['^
+close bracket => ^']'
+open quote => '"'^
+close quote => ^'"'
+quote quote => '""'
+open single quote => "'"^
+close single quote => ^"'"
+open triple quote => '"""'^
+close triple quote => ^'"""'
+triple start quote => '"""'^
+triple end quote => ^'"""'
+ampersand character => "&"
+and character => '&'
+and symbol => '&'
+or symbol => '|'
+or character => '|'
+pipe character => "|"
+backslash => ^'\\'^
+back slash => ^'\\'^
+slash => ^'/'^
+slash slash => ^'//'
+space => ^' '^
+bang => ^'!'
+sharp symbol => ^'#'
+hash symbol => ^'#'
+at symbol => ^'@'^
+no space => ^''^
+comma => ^','
+colon => ^':'^
+semi colon => ^';'
+equals => '='
+equal sign => '='
+not equal => '!='
+double equal => '=='
+double equals => '=='
+dollar sign => ^'$'^
+per cent => ^'%'^
+asterisk => ^'*'^
+asterisk character => '*'^ 
+asterisk asterisk  => '**'^
+plus character => '+'
+minus character => '-'
+hyphen => ^'-'^
+division character => '/'
+greater than => '>'
+less than => '<'
+ellipsis => ^'...'
+caret => ^'^'^ 
+caret symbol  => ^'^'^ 
+caret character => ^'^'^ 
+arrow symbol => '=>'
+back tick => '`'
+open brace => ^'{'^
+close brace => ^'}'^
+tilde => '~'^
+apostrophe => ^"'"^
+
+#include case
+#include codenames
+
+# # Key symbol entry
+# press ${key} => \key ${key}
+# press enter => \key (Enter)
+# go up => \key (Up)
+# go down => \key (Down)
+# go left => \key (Left)
+# go right => \key (Right)
+# go home => \key (Home)
+# go end => \key (End)
+# indent => \key (Tab)
+# reduce indent => \key (Shift+Tab)
+# unselect => \key (Escape)
+# escape => \key (Escape)
+# alt ${word} => \key (Alt+${word})
+ 
+# spell that => correction()
+# type that => correction()
+# spell out => spell_on()
+# stop spell => spell_off()
+# spell stop =>  spell_off()
+# camel case => camel_on()
+# dunder ${phrase} => '_'^'_'^${phrase}^'_'^'_'
+
+# start listening => start()
+# wake up => start()
+# stop listening => stop()
+# go to sleep => stop()
+# undo that => undo()
+# correct that => correction()
+# scratch that => undo()
+# select left => \key (Shift+Ctrl+Left)
+# select right => \key (Sift+Ctrl+Left)
+# select ${number} words => \key (Shift+Ctrl+Right)
+# select back ${number} words => \key (Shift+Ctrl+Right)
+# select up line => \key (Shift+Up)
+# select down line => \key (Shift+Down)
