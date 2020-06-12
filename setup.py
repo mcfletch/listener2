@@ -56,6 +56,6 @@ if __name__ == "__main__":
         test_suite='tests',
         tests_require=test_requirements,
         url='https://github.com/mcfletch/listener',
-        version='2.0.0',
+        version='2.0.0a1',
         zip_safe=False,
     )
