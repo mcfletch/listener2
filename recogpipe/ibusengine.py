@@ -29,6 +29,7 @@ import json, logging, threading, time, errno, socket, select, os
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
 
 BUS = None
+MAINLOOP = None
 NAME = 'RecogPipe'
 SERVICE_NAME = NAME.lower()
 COMPONENT = "org.freedesktop.IBus.%s" % (NAME,)
@@ -85,7 +86,9 @@ class RecogPipeEngine(IBus.Engine):
             5, 0, True, True,  # size  # index,  # cursor visible  # round
         )
         self.lookup_table_content = []
-        self.interpreter_rules = interpreter.load_rules(interpreter.good_commands,)
+        self.interpreter_rules, self.rule_set = interpreter.load_rules(
+            interpreter.good_commands,
+        )
         # self.lookup_table.ref_sink()
         super(RecogPipeEngine, self).__init__()
 
@@ -191,17 +194,7 @@ def get_options():
     return parser
 
 
-def main():
-    options = get_options().parse_args()
-    logging.basicConfig(
-        level=logging.DEBUG if options.verbose else logging.WARNING,
-        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
-    )
-    if options.raw:
-        log.warning("Dictating with raw DeepSpeech output")
-        global DEFAULT_PIPE
-        DEFAULT_PIPE = os.path.join(RUN_DIR, 'events')
-
+def register_engine(bus, live=False):
     log.debug('Registering the component')
     component = IBus.Component(
         name=COMPONENT,
@@ -214,29 +207,19 @@ def main():
         textdomain='en',  # TODO: is this language?
     )
     component.add_engine(RecogPipeEngine.DESCRIPTION)
-
-    mainloop = GLib.MainLoop()
-    global BUS
-    bus = BUS = IBus.Bus()
-
-    def on_disconnected(bus):
-        mainloop.quit()
-
-    bus.connect('disconnected', on_disconnected)
     connection = bus.get_connection()
     assert connection, "IBus has no connection"
     factory = IBus.Factory.new(connection)
     factory.add_engine(
         SERVICE_NAME, GObject.type_from_name(NAME)
     ), "Unable to add the engine"
-
-    if not options.live:
+    if not live:
         assert bus.register_component(component), "Unable to register our component"
 
         def on_set_engine(source, result, data=None):
             if result.had_error():
                 log.error("Unable to register!")
-                mainloop.quit()
+                MAINLOOP.quit()
 
         def set_engine():
             bus.set_global_engine_async(
@@ -252,6 +235,28 @@ def main():
         GLib.idle_add(
             bus.request_name, COMPONENT, IBus.BusNameFlag.ALLOW_REPLACEMENT,
         )
+
+
+def main():
+    options = get_options().parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if options.verbose else logging.WARNING,
+        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
+    )
+    if options.raw:
+        log.warning("Dictating with raw DeepSpeech output")
+        global DEFAULT_PIPE
+        DEFAULT_PIPE = os.path.join(RUN_DIR, 'events')
+
+    global BUS, MAINLOOP
+    mainloop = MAINLOOP = GLib.MainLoop()
+    bus = BUS = IBus.Bus()
+
+    def on_disconnected(bus):
+        mainloop.quit()
+
+    bus.connect('disconnected', on_disconnected)
+
     # TODO: we should be checking the result here, the sync method just times out
     # but the async one seems to work, just takes a while
     log.debug("Starting mainloop")
