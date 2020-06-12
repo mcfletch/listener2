@@ -9,5 +9,6 @@ twine
 pytest
 pytest-runner
 PySide2
+venvhpl
 # Needed to work with Python 3.7+
 https://github.com/kpu/kenlm/archive/master.zip

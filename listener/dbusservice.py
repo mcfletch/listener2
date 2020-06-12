@@ -35,7 +35,7 @@ distribution declares itself to be MIT licensed, but the FAQ for which
 declares to be a dual license AFL/GPL license.
 """
 from __future__ import absolute_import
-import gi
+from .hostgi import gi
 
 gi.require_version('IBus', '1.0')
 from gi.repository import IBus

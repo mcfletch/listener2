@@ -16,7 +16,7 @@ at that point this engine will be primarily responsible
 for keeping track of where text was inserted (so that we can
 remove the text if we need to do a correction).
 """
-import gi
+from .hostgi import gi
 
 gi.require_version('IBus', '1.0')
 from gi.repository import IBus
