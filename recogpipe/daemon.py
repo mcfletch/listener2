@@ -259,7 +259,8 @@ def iter_metadata(model, input, rate=SAMPLE_RATE, max_decode_rate=4):
                 metadata = metadata_to_json(
                     stream.intermediateDecodeWithMetadata(), partial=True
                 )
-                yield metadata
+                if metadata['transcripts'][0]['text']:
+                    yield metadata
                 words = metadata['transcripts'][0]['words']
                 log.info("... %s", ' '.join(words))
 
