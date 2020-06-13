@@ -1,10 +1,10 @@
 import unittest
-from listener import interpreter
+from listener import interpreter, ruleloader
 
 
 class TestInterpreter(unittest.TestCase):
     def test_loading(self):
-        rules, ruleset = interpreter.load_rules('default')
+        rules, ruleset = ruleloader.load_rules('default')
         assert rules
         assert ruleset
         for rule in ruleset:
@@ -12,7 +12,7 @@ class TestInterpreter(unittest.TestCase):
             assert rule.target
 
     def test_text_expansion(self):
-        rules, ruleset = interpreter.load_rules('default')
+        rules, ruleset = ruleloader.load_rules('default')
         for rule in ruleset:
             match = interpreter.match_rules(rule.match, rules)
             assert match
@@ -26,7 +26,7 @@ class TestInterpreter(unittest.TestCase):
                 assert result[0] == '^', result
 
     def test_apply_rules(self):
-        rules, ruleset = interpreter.load_rules('default')
+        rules, ruleset = ruleloader.load_rules('default')
         for spoken, expected in [
             ('close the file period', ' close the file. ',),
             ('open parenthesis this comma that', ' (this, that ',),
@@ -41,3 +41,6 @@ class TestInterpreter(unittest.TestCase):
                 interpreter.apply_rules(spoken.split(' '), rules)
             )
             assert result == expected, (spoken, result)
+
+    def test_context_loading(self):
+        core = interpreter.Context('core')

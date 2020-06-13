@@ -52,15 +52,34 @@ The current state of the project is a proof of concept, what works:
 * a UInput mechanism that allows for the introduction of special characters as though they were
   typed directly into a keyboard
 
+## Quick Start
+
+Since there is not yet a working graphically user interface the set up is not as
+friendly as commercial voice dictation solutions.
+```
+sudo apt install $(echo dependencies.txt)
+virtualenv -p python3 listener-env
+source listener-env/bin/activate
+pip install -r requirements.txt
+listener-docker
+listener-audio &
+listener-interpreter &
+listner-ibus &
+```
+
 ## Installation/Setup
 
-See [Installation Docs](./docs/installation.rst)
+See [Installation Docs](./docs/installation.rst) for full installation instructions...
 
 ## Reference Docs for Devs
 
 * [IBus](https://lazka.github.io/pgi-docs/IBus-1.0/index.html)
 * [DeepSpeech](https://deepspeech.readthedocs.io/en/latest/Python-API.html)
 * [Pyside2](https://doc.qt.io/qtforpython/modules.html)
+
+## Research to Explore
+
+* [Biasing by Context](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/43819.pdf)
 
 [![PyPI Version](https://img.shields.io/pypi/v/listener.svg)](https://pypi.python.org/pypi/listener)
 

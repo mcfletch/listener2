@@ -39,6 +39,8 @@ CACHED_SCORER_FILE = os.path.join(
 RAW_EVENTS = os.path.join(RUN_DIR, 'events')
 FINAL_EVENTS = os.path.join(RUN_DIR, 'clean-events')
 
+BUILTIN_RULESETS = os.path.join(LISTENER_SOURCE, 'rulesets')
+BUILTIN_CONTEXTS = os.path.join(LISTENER_SOURCE, 'contexts')
 
 DOCKER_CONTAINER = '%s_%s' % (APP_NAME, get_username())
 DOCKER_IMAGE = '%s-server' % (APP_NAME,)
