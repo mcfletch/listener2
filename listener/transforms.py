@@ -41,3 +41,12 @@ def underscore_name(words):
 @named_rule
 def percent_format(name):
     return ['%(', '^', name, '^', ')s']
+
+
+@named_rule
+def no_spaces(words):
+    result = ['^']
+    for word in words:
+        result.append(word)
+        result.append('^')
+    return result
