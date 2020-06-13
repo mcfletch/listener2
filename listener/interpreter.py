@@ -147,21 +147,21 @@ class Context(object):
         estimates = []
         for scorer in self.scorers:
             # Show scores and n-gram matches
-            for transcript in event['transcripts']:
-                log.debug("Trans: %r", transcript['text'])
-                score = scorer.score(transcript['text'])
+            for transcript in event.transcripts:
+                log.debug("Trans: %r", transcript.text)
+                score = scorer.score(transcript.text)
                 estimates.append((score, transcript))
         return sorted(estimates)
 
     def apply_rules(self, event):
         rules = self.rules
-        for transcript in event['transcripts']:
-            original = transcript['words'][:]
-            new_words = apply_rules(transcript['words'], rules)
+        for transcript in event.transcripts:
+            original = transcript.words[:]
+            new_words = apply_rules(transcript.words, rules)
             if new_words != original:
-                transcript['text'] = words_to_text(new_words)
-                transcript['words'] = new_words
-            log.debug("%r => %r", words_to_text(original), transcript['text'])
+                transcript.text = words_to_text(new_words)
+                transcript.words = new_words
+            log.debug("%r => %r", words_to_text(original), transcript.text)
             break
         return event
 
@@ -209,13 +209,13 @@ def main():
     for event in eventreceiver.read_from_socket(
         sockname=defaults.RAW_EVENTS, connect_backoff=2.0,
     ):
-        if not event.get('partial'):
+        if not event.partial:
             # TODO: Need a better way to exclude silence and small speaking pops
             # The DeepSpeech language model basically has 'he' as the result for
             # lots of breath and pop sounds, but that's just an artifact of this
             # particular language model rather than the necessary result of hearing
             # the pop
-            if event['transcripts'][0]['words'] in ([''], ['he']):
+            if event.transcripts[0].words in ([''], ['he']):
                 continue
             if not options.scorer:
                 event = context.apply_rules(event)

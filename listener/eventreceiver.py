@@ -1,6 +1,6 @@
 """Simple iterative reading of an open socket to produce events"""
 import socket, logging, time, json, select, os
-from . import defaults
+from . import defaults, models
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def read_from_socket(
                     while b'\000' in content:
                         message, content = content.split(b'\000', 1)
                         decoded = json.loads(message)
-                        yield decoded
+                        yield models.Utterance(**decoded)
             finally:
                 log.info("Closing %s", sockname)
                 sock.close()

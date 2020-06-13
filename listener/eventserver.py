@@ -43,7 +43,10 @@ def write_queue(queue, outputs):
     """run the write queue"""
     while True:
         record = queue.get()
-        encoded = json.dumps(record).encode('utf-8')
+        if hasattr(record, 'json'):
+            encoded = record.json().encode('utf-8')
+        else:
+            encoded = json.dumps(record).encode('utf-8')
         for output in outputs:
             output.put(encoded)
 

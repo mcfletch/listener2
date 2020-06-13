@@ -152,8 +152,8 @@ class ListenerEngine(IBus.Engine):
             transcript = self.first_transcript(event)
             # ick, 'he' is the default in the particular 0.7.3 released language model... meh
             to_send = []
-            log.debug('Words: %s', transcript['words'])
-            for word in transcript['words']:
+            log.debug('Words: %s', transcript.words)
+            for word in transcript.words:
                 if word == '^':
                     self.no_space = True
                 elif isinstance(word, str):
@@ -176,7 +176,7 @@ class ListenerEngine(IBus.Engine):
             self.commit_text(IBus.Text.new_from_string(''.join(block)))
 
     def first_transcript(self, event):
-        for transcript in event['transcripts']:
+        for transcript in event.transcripts:
             return transcript
 
 

@@ -37,3 +37,26 @@ class Rule(pydantic.BaseModel):
         except Exception as err:
             err.args += (self,)
             raise
+
+
+class Transcript(pydantic.BaseModel):
+    """Represents a potential transcript for an utterance"""
+
+    partial: bool = False
+    final: bool = True
+    text: str = ''  # debugging text
+    words: List[str] = []
+    tokens: List[str] = []  # tokens predicted by backend
+    starts: List[float] = []  # relative starts of tokens
+    words: List[str] = []  # space-separated blocks
+    word_starts: List[float] = []  # start of each space-separated block
+    confidence: float = 0.0  # estimate of confidence for the whole transcript...
+
+
+class Utterance(pydantic.BaseModel):
+    """Represents a single utterance detected by the backend"""
+
+    utterance_number: int = 0
+    partial: bool = False
+    final: bool = True
+    transcripts: List[Transcript] = []

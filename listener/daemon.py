@@ -36,6 +36,9 @@ def metadata_to_json(metadata, partial=False):
         'final': not partial,
         'transcripts': [],
     }
+    if not partial:
+        struct['utterance_number'] = int(time.time())
+
     for transcript in metadata.transcripts:
         struct['transcripts'].append(transcript_to_json(transcript))
     return struct

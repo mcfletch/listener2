@@ -4,7 +4,7 @@ from .ruleregistry import rule_by_name
 from .errors import MissingRules
 from . import defaults
 from . import transforms
-from .rule import Rule, null_transform
+from .models import Rule, null_transform
 
 log = logging.getLogger(__name__)
 
