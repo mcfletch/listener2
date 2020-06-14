@@ -1,7 +1,7 @@
 """Provide for the interpretation of incoming utterances based on user provided rules
 """
 import re, logging, os, json
-from . import defaults, ruleloader
+from . import defaults, ruleloader, models
 
 log = logging.getLogger(__name__)
 
@@ -89,34 +89,13 @@ class KenLMScorer(object):
 
 
 class Context(object):
-    """A biasing  context which modifies the of a particular transcription
-
-    """
-
     def __init__(self, name):
         self.name = name
-        if name == 'core':
-            self.directory = os.path.join(defaults.BUILTIN_CONTEXTS, name)
-        else:
-            self.directory = os.path.join(defaults.CONTEXT_DIR, name)
-        self.config_file = os.path.join(self.directory, 'config.json')
-        self.load_config()
+        self.config = models.ContextDefinition.load_config(self.name)
 
-    def load_config(self):
-        if os.path.exists(self.config_file):
-            self.config = json.loads(open(self.config_file).read())
-        else:
-            self.config = {}
-
-    def save_config(self):
-        if self.name == 'core':
-            return False
-        content = json.dumps(self.config, indent=2, sort_keys=True)
-        with open(self.config_file + '~', 'w') as fh:
-            fh.write(content)
-        os.rename(self.config_file + '~', self.config_file)
-        return True
-
+    SCORER_CLASSES = {
+        'kenlm': KenLMScorer,
+    }
     _scorers = None
 
     @property
@@ -126,7 +105,8 @@ class Context(object):
             import kenlm
 
             models = []
-            for source in self.config.get('scorers', [defaults.CACHED_SCORER_FILE]):
+            for source in self.config.scorers:
+                cls = self.SCORER_CLASSES[source]
                 model = kenlm.Model(source)
                 models.append(model)
             self._scorers = models
@@ -138,9 +118,7 @@ class Context(object):
     @property
     def rules(self):
         if self._rules is None:
-            self._rules, self._rule_set = ruleloader.load_rules(
-                self.config.get('rules', 'default')
-            )
+            self._rules, self._rule_set = ruleloader.load_rules(self.config.rules)
         return self._rules
 
     def score(self, event):

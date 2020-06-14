@@ -1,6 +1,9 @@
 """Data-model class for a rule"""
-import pydantic
-from typing import List, Optional, Callable
+import pydantic, os, logging, json
+from typing import List, Optional, Callable, Dict
+from . import defaults
+
+log = logging.getLogger(__name__)
 
 
 def null_transform(words, start_index=0, end_index=0):
@@ -60,3 +63,81 @@ class Utterance(pydantic.BaseModel):
     partial: bool = False
     final: bool = True
     transcripts: List[Transcript] = []
+
+
+class Dictionary(pydantic.BaseModel):
+    words: set = None
+
+    def __contains__(self, word):
+        return word in self.words
+
+    def have_words(self, *words):
+        result = []
+        for word in words:
+            if word in self.words:
+                result.append(word)
+        return result
+
+
+class ScorerDefinition(pydantic.BaseModel):
+    """Defines a scorer for a particular context"""
+
+    type: str = 'kenlm'
+    language_model: str = defaults.CACHED_SCORER_FILE
+
+
+class ContextDefinition(pydantic.BaseModel):
+    """A biasing  context which modifies the of a particular transcription
+
+    """
+
+    name: str = ''
+    scorers: List[str] = [
+        ScorerDefinition(type='kenlm', language_model=defaults.CACHED_SCORER_FILE,),
+    ]
+    rules: str = 'default'
+
+    @classmethod
+    def directory(cls, name):
+        """Calculate our directory"""
+        if name == 'core':
+            return os.path.join(defaults.BUILTIN_CONTEXTS, name)
+        else:
+            return os.path.join(defaults.CONTEXT_DIR, name)
+
+    @classmethod
+    def config_file(cls, name):
+        """Calculate the configuration file for the given name"""
+        return os.path.join(cls.directory(name), 'config.json')
+
+    @classmethod
+    def load_config(cls, name):
+        """Load configuration from the named file"""
+        filename = cls.config_file(name)
+        if os.path.exists(filename):
+            config = cls(**json.loads(open(filename).read()))
+            if config.name != name:
+                log.warning("Config stored in %s is named %s", name, config.name)
+                config.name = name
+
+            return config
+        else:
+            return cls(name=name)
+
+    def save_config(self):
+        """Save the context configuration to a file"""
+        if self.name == 'core':
+            return False
+        content = self.json()
+        filename = self.config_file(self.name)
+        atomic_write(filename, content)
+        return True
+
+
+def atomic_write(filename, content):
+    """Write the content to filename either succeeding or not replacing it"""
+    temporary = filename + '~'
+    with open(temporary, 'w') as fh:
+        fh.write(content)
+    os.rename(temporary, filename)
+    return filename
