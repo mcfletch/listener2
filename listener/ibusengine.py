@@ -110,6 +110,15 @@ class ListenerEngine(IBus.Engine):
             self.processing.setDaemon(True)
             self.processing.start()
 
+    def do_process_key_event(self, keyval, keycode, state):
+        """Process a key-event from the regular keyboard
+        
+        This lets the user pressing a key reset the space-tracking
+        """
+        log.info("Key: %r %r %r", keyval, keycode, state)
+        self.no_space = False
+        return False
+
     def do_focus_out(self):
         log.debug("the engine lost focus")
         self.wanted = False
@@ -148,7 +157,7 @@ class ListenerEngine(IBus.Engine):
 
     def on_decoding_event(self, event):
         """We have received an event, update IBus with the details"""
-        if not event.get('partial'):
+        if not event.partial:
             transcript = self.first_transcript(event)
             # ick, 'he' is the default in the particular 0.7.3 released language model... meh
             to_send = []
