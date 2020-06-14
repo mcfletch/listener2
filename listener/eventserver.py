@@ -59,7 +59,7 @@ def out_writer(conn, q, outputs):
             conn.sendall(content)
             conn.sendall(b'\000')
         except Exception:
-            log.exception("Failed during send")
+            log.debug("Failed during send, closing this client: %s", conn)
             conn.close()
             break
     outputs.remove(q)
