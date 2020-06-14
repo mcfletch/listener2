@@ -58,15 +58,21 @@ The current state of the project is a proof of concept, what works:
 Since there is not yet a working graphically user interface the set up is not as
 friendly as commercial voice dictation solutions.
 ```
-sudo apt install $(echo dependencies.txt)
+sudo apt install $(cat dependencies.txt)
 virtualenv -p python3 listener-env
 source listener-env/bin/activate
 pip install -r requirements.txt
+# following will download the (large) language model to cache
+# before starting the docker container
 listener-docker
+# Feed raw audio into the recognition daemon
 listener-audio &
+# Interpret the raw recognition events as commands and text
 listener-interpreter &
-listner-ibus &
+# Send the commands and text to the Linux Desktop via IBus
+listener-ibus &
 ```
+
 
 ## Installation/Setup
 
