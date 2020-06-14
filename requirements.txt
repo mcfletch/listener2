@@ -13,3 +13,6 @@ venvhpl
 pydantic
 # Needed to work with Python 3.7+
 https://github.com/kpu/kenlm/archive/master.zip
+
+# Training language models
+progressbar2

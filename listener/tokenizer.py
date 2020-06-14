@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import unicodedata, logging, re, os, locale, itertools
 from collections import deque
+from . import models
 from ._bytes import as_unicode, unicode
 
 log = logging.getLogger(__name__)
@@ -242,8 +243,9 @@ class Tokenizer(object):
         'X': 'x',
         '-': 'minus',
         '+': 'plus',
-        '.': '.dot',
+        '.': 'dot',
     }
+
     PUNCTUATION_NAMES = {
         # TODO: allow user overrides for all of these
         # so they can use star-star or left-paren or some custom
@@ -251,45 +253,45 @@ class Tokenizer(object):
         '\r\n': 'new-line',
         '\r': 'new-line',
         '\n': 'new-line',
-        '!': '!exclamation-point',
-        '!=': '!=not-equal',
-        '"': '"double-quote',
-        '#': '#sharp-sign',
-        '$': '$dollar-sign',
-        '%': '%percent',
-        '&': '&ampersand',
-        "'": "'quote",
-        "'''": "'''triple-single-quote",
-        '"""': '"""triple-quote',
-        '(': '(open-paren',
-        ')': ')close-paren',
-        '*': '*asterisk',
-        '**': '**asterisk-asterisk',
-        '+': '+plus',
-        ',': ',comma',
-        '-': '-hyphen',
-        '.': '.dot',
-        '...': '...ellipsis',
-        '/': '/slash',
-        ':': ':colon',
-        ';': ';semi-colon',
-        '<': '<less-than',
-        '=': '=equals',
-        '==': '==equal-equal',
-        '>': '>greater-than',
-        '?': '?question-mark',
-        '@': '@at',
-        '[': '[open-bracket',
-        '\\': '\\back-slash',
-        ']': ']close-bracket',
-        '^': '^caret',
-        '_': '_under-score',
-        '__': '__dunder',
-        '`': '`back-tick',
-        '{': '{open-brace',
-        '|': '|bar',
-        '}': '}close-brace',
-        '~': '~tilde',
+        '!': 'exclamation-point',
+        '!=': 'not-equal',
+        '"': 'double-quote',
+        '#': 'hash',
+        '$': 'dollar-sign',
+        '%': 'percent',
+        '&': 'ampersand',
+        "'": "quote",
+        "'''": "triple-single-quote",
+        '"""': 'triple-quote',
+        '(': 'open-paren',
+        ')': 'close-paren',
+        '*': 'asterisk',
+        '**': 'asterisk-asterisk',
+        '+': 'plus',
+        ',': 'comma',
+        '-': 'hyphen',
+        '.': 'period',
+        '...': 'ellipsis',
+        '/': 'slash',
+        ':': 'colon',
+        ';': 'semi-colon',
+        '<': 'less-than',
+        '=': 'equals',
+        '==': 'equal-equal',
+        '>': 'greater-than',
+        '?': 'question-mark',
+        '@': 'at',
+        '[': 'open-bracket',
+        '\\': 'back-slash',
+        ']': 'close-bracket',
+        '^': 'caret',
+        '_': 'under-score',
+        '__': 'dunder',
+        '`': 'back-tick',
+        '{': 'open-brace',
+        '|': 'bar',
+        '}': 'close-brace',
+        '~': 'tilde',
     }
     LONG_PUNCT = sorted(
         PUNCTUATION_NAMES.keys(), key=lambda x: (len(x), x), reverse=True,
@@ -303,11 +305,26 @@ class Tokenizer(object):
         """Iterate producing all expanded tokens for a given text"""
         if isinstance(text, (unicode, str)):
             text = [text]
+        tokens = []
         for statement in text:
-            tokens = []
             for expanded in self.expand(statement):
-                tokens.extend(expanded)
-            yield tokens
+                compressed = self.compress(expanded)
+                tokens.extend([x for x in compressed if x != ' '])
+        return tokens
+
+    def compress(self, expanded):
+        """Search for common patterns that can be compressed"""
+        for i, token in enumerate(expanded):
+            if token == 'period':
+                if i == len(expanded) - 1:
+                    continue
+                elif expanded[i + 1 : i + 3] == [' ', 'cap']:
+                    continue
+                elif expanded[i + 1 : i + 3] == ['new-line']:
+                    continue
+                else:
+                    expanded[i : i + 1] = ['dot']
+        return expanded
 
     _cached_run_together = None
 
@@ -328,6 +345,12 @@ class Tokenizer(object):
     def _parse_run_together(self, name):
         if (not self.dictionary) or not (self.run_together_guessing):
             return [name]
+        if name in self.dictionary:
+            return [name]
+        original = name
+        if original in self.dictionary:
+            return [original]
+        return [name]
         # split up the name looking for runtogether words...
         name = name.lower()
         if name in self.dictionary:
@@ -339,31 +362,25 @@ class Tokenizer(object):
         prefixes = [name[:i] for i in range(1, len(name))]
         mapped = self.dictionary.have_words(*prefixes)
         possibles = []
-        for (prefix, translations) in sorted(
-            mapped.items(), key=lambda x: len(x[0]), reverse=True
-        ):
-            if translations:
-                suffix = name[len(prefix) :]
-                if suffix in self.dictionary:
-                    return [prefix, suffix]
-                remaining = self.parse_run_together(suffix)
-                if len(prefix) > 1 and remaining != [suffix]:
-                    return [prefix] + remaining
-                possibles.append([prefix] + remaining)
+        for prefix in sorted(mapped, key=lambda x: len(x[0]), reverse=True):
+            suffix = name[len(prefix) :]
+            if suffix in self.dictionary:
+                return [prefix, suffix]
+            remaining = self.parse_run_together(suffix)
+            if len(prefix) > 1 and remaining != [suffix]:
+                return [prefix] + remaining
+            possibles.append([prefix] + remaining)
         suffixes = [name[-i:] for i in range(1, len(name))]
         mapped = self.dictionary.have_words(*suffixes)
         possibles = []
-        for (suffix, translations) in sorted(
-            mapped.items(), key=lambda x: len(x[0]), reverse=True
-        ):
-            if translations:
-                prefix = name[: -len(suffix)]
-                if prefix in self.dictionary:
-                    return [prefix, suffix]
-                remaining = self.parse_run_together(prefix)
-                if len(suffix) > 1 and remaining != [prefix]:
-                    return remaining + [suffix]
-                possibles.append(remaining + [suffix])
+        for suffix in sorted(mapped, key=lambda x: len(x[0]), reverse=True):
+            prefix = name[: -len(suffix)]
+            if prefix in self.dictionary:
+                return [prefix, suffix]
+            remaining = self.parse_run_together(prefix)
+            if len(suffix) > 1 and remaining != [prefix]:
+                return remaining + [suffix]
+            possibles.append(remaining + [suffix])
         if len(name) < 3:
             return [c for c in name]
         return [name]
@@ -500,3 +517,18 @@ class Tokenizer(object):
                 return ['camel'] + split_expanded
             else:
                 return split_expanded
+
+
+DEFAULT_DICTIONARIES = [
+    '/usr/share/dict/words',
+    '/var/datasets/text/google-10000-english.txt',
+]
+
+
+def default_dictionary():
+    """Load a default dictionary text file"""
+    result = set()
+    for wordlist in DEFAULT_DICTIONARIES:
+        for line in open(wordlist):
+            result.add(line.strip())
+    return models.Dictionary(words=result)
