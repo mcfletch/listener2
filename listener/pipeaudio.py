@@ -24,7 +24,7 @@ def get_options():
         '--verbose',
         default=False,
         action='store_true',
-        help='Enable verbose logging (for developmen/debugging)',
+        help='Enable verbose logging (for development/debugging)',
     )
     return parser
 
@@ -42,7 +42,7 @@ def main():
         os.mkfifo(target)
     command = [
         'parec',
-        '-v',
+        # '-v',
         '--rate',
         str(defaults.SAMPLE_RATE),
         '--format',
