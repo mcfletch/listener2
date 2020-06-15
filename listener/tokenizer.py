@@ -286,12 +286,15 @@ class Tokenizer(object):
         ']': 'close-bracket',
         '^': 'caret',
         '_': 'under-score',
-        '__': 'dunder',
+        #'__': 'dunder',
         '`': 'back-tick',
         '{': 'open-brace',
         '|': 'bar',
         '}': 'close-brace',
         '~': 'tilde',
+    }
+    PX_NAMES = {
+        '.': 'dot',
     }
     LONG_PUNCT = sorted(
         PUNCTUATION_NAMES.keys(), key=lambda x: (len(x), x), reverse=True,
