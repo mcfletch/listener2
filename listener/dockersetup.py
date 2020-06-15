@@ -139,47 +139,12 @@ def get_options():
         help='If specified, halt the current docker process',
     )
     parser.add_argument(
-        '--kenlm',
-        default=False,
-        action='store_true',
-        help='If specified, build the kenlm binaries for use in compiling language models',
-    )
-    parser.add_argument(
         '--container',
         default=defaults.DOCKER_CONTAINER,
         help='Override the default docker container name (e.g. for a utility container)',
     )
     return parser
 
-def ensure_ken_lm(force=False):
-    ken_lm_bin = os.path.join(defaults.LISTENER_SOURCE,'..', 'docker/kenlm/bin')
-    if force or not glob.glob(os.path.join(ken_lm_bin, '*')):
-        if os.path.exists(ken_lm_bin):
-            shutil.rmtree(ken_lm_bin, True)
-        command = [
-            'docker',
-            'build',
-            '-t',
-            'kenlm-build',
-            os.path.join(defaults.LISTENER_SOURCE,'..','docker/kenlm'),
-        ]
-        subprocess.check_call(command)
-        command = [
-            'docker', 'run', '--rm','-d',
-            '--name', 'kenlm-build',
-            'kenlm-build',
-            '/bin/bash','-c','sleep 30',
-        ]
-        subprocess.check_call(command)
-        subprocess.check_call([
-            'docker', 'cp',
-            'kenlm-build:/src/kenlm',
-            ken_lm_bin,
-        ])
-        command = [
-            'docker', 'stop','kenlm-build',
-        ]
-        subprocess.check_call(command)
 
 def main():
     options = get_options().parse_args()
@@ -192,7 +157,6 @@ def main():
         .strip()
         .splitlines()
     )
-    ensure_ken_lm(force=options.kenlm)
     if options.build or len(images) < 2:
         command = [
             'docker',
