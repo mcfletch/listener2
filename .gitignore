@@ -4,3 +4,4 @@ dist
 build
 *.pyc
 docs/_build
+docker/kenlm/bin
