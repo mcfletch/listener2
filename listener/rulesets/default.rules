@@ -15,8 +15,8 @@ close parentheses => ^')'
 close parenthesis => ^')'
 close paren => ^')'
 underscore => ^'_'^
-open bracket => '['^
-close bracket => ^']'
+open bracket => ^'['^
+close bracket => ^']'^
 open quote => '"'^
 close quote => ^'"'
 quote quote => '""'
@@ -72,6 +72,7 @@ open brace => ^'{'^
 close brace => ^'}'^
 tilde => '~'^
 apostrophe => ^"'"^
+dunder ${word} => dunder()
 
 #include case
 #include codenames
