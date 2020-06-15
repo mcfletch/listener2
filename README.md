@@ -86,7 +86,9 @@ See [Installation Docs](./docs/installation.rst) for full installation instructi
 
 ## Research to Explore
 
-* [Biasing by Context](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/43819.pdf)
+* [Biasing by Context](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/43819.pdf) -- Instead of having to train language models for each context-type
+* [Big Code not Big Vocabulary](https://arxiv.org/abs/2003.07914) [Code](https://github.com/mast-group/OpenVocabCodeNLM)
+* [Suggesting Accurate Method and Class Names](https://miltos.allamanis.com/publications/2015suggesting/)
 
 [![PyPI Version](https://img.shields.io/pypi/v/listener.svg)](https://pypi.python.org/pypi/listener)
 
