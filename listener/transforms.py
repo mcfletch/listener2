@@ -50,3 +50,9 @@ def no_spaces(words):
         result.append(word)
         result.append('^')
     return result
+
+@named_rule
+def dunder(words):
+    """Create a python dunder name"""
+    return ['__'] + underscore_name(words) + ['__']
+    
