@@ -506,16 +506,16 @@ class Tokenizer(object):
                     # "unicode <name of character>"
                     return [word.lower()]
             elif word.isupper():
-                return ['all', 'caps'] + split_expanded
+                return ['all-caps'] + split_expanded
             elif word.title() == word:
                 return ['cap'] + split_expanded
             else:
                 return split_expanded
         else:
             if all_caps:
-                return ['all', 'caps'] + split_expanded
+                return ['all-caps'] + split_expanded
             elif cap_camel_case:
-                return ['cap', 'camel'] + split_expanded
+                return ['cap-camel'] + split_expanded
             elif camel_case and len(split) > 1:
                 return ['camel'] + split_expanded
             else:
