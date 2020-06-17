@@ -2,6 +2,7 @@
 """
 import re, logging, os, json
 from . import defaults, ruleloader, models
+import pydantic
 
 log = logging.getLogger(__name__)
 
@@ -83,52 +84,61 @@ def words_to_text(words):
     return ''.join(result)
 
 
-class KenLMScorer(object):
-    def __init__(self, context):
-        """Scorer which attempts to apply scores to incoming utterances"""
+class KenLMScorer(pydantic.BaseModel):
+    definition: models.ScorerDefinition = None
+
+    _scorer = None
+
+    @property
+    def name(self):
+        return self.definition.name
+
+    @models.justonce_property
+    def scorer(self):
+        """Load our scorer model (a KenLM model by default)"""
+        import kenlm
+
+        model = kenlm.Model(self.definition.language_model)
+        return model
+
+    def score(self, utterance: models.Utterance):
+        """Score the utterance"""
+        scorer = self.scorer
+        scores = []
+        for transcript in utterance.transcripts:
+            score = scorer.score(transcript.text)
+            scores.append((score, transcript))
+        return sorted(scores, key=lambda x: x[0], reverse=True)
 
 
 class Context(object):
     def __init__(self, name):
         self.name = name
-        self.config = models.ContextDefinition.load_config(self.name)
+        self.config = models.ContextDefinition.by_name(self.name)
 
     SCORER_CLASSES = {
         'kenlm': KenLMScorer,
     }
-    _scorers = None
 
-    @property
-    def scorers(self):
-        """Load our scorer model (a KenLM model by default)"""
-        if self._scorers is None:
-            import kenlm
-
-            models = []
-            for source in self.config.scorers:
-                cls = self.SCORER_CLASSES[source]
-                model = kenlm.Model(source)
-                models.append(model)
-            self._scorers = models
-        return self._scorers
-
-    _rules = None
-    _ruleset = None
-
-    @property
+    @models.justonce_property
     def rules(self):
-        if self._rules is None:
-            self._rules, self._rule_set = ruleloader.load_rules(self.config.rules)
-        return self._rules
+        return ruleloader.load_rules(self.config.rules)
+
+    @models.justonce_property
+    def scorers(self):
+        return [
+            self.SCORER_CLASSES[scorer.type](definition=scorer)
+            for scorer in self.config.scorers
+            if scorer.type in self.SCORER_CLASSES
+        ]
 
     def score(self, event):
         estimates = []
         for scorer in self.scorers:
             # Show scores and n-gram matches
-            for transcript in event.transcripts:
-                log.debug("Trans: %r", transcript.text)
-                score = scorer.score(transcript.text)
-                estimates.append((score, transcript))
+            log.info("With the %s scorer", scorer.name)
+            for rating, transcript in scorer.score(event)[:10]:
+                log.info("%8s => %r", '%0.2f' % (rating), transcript.text)
         return sorted(estimates)
 
     def apply_rules(self, event):
@@ -170,6 +180,12 @@ def get_options():
         action='store_true',
         help='Enable verbose logging (for developmen/debugging)',
     )
+    parser.add_argument(
+        '--context',
+        default='english-python',
+        choices=sorted(models.ContextDefinition.context_names()),
+        help='Context in which to start processing',
+    )
     return parser
 
 
@@ -179,7 +195,8 @@ def main():
     from . import eventreceiver, eventserver
     import json
 
-    context = Context('core')
+    # Start in the wikipedia context...
+    context = Context(options.context)
     if not options.scorer:
         queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
     else:

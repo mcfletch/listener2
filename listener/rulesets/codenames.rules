@@ -1,12 +1,11 @@
 # Case manipulation
-see name ${phrase} => camel_lower()
-jay ess name ${phrase} => camel_lower()
+c-name ${phrase} => camel_lower()
+j-s-name ${phrase} => camel_lower()
 
-pie name ${phrase} => underscore_name()
-underscore name ${phrase} => underscore_name()
-under name ${phrase} => underscore_name()
+py-name ${phrase} => underscore_name()
+underscore-name ${phrase} => underscore_name()
+under-name ${phrase} => underscore_name()
 
-per cent format ${name} => percent_format()
-percent format ${name} => percent_format()
+percent-format ${name} => percent_format()
 
 constant ${phrase} => constant()

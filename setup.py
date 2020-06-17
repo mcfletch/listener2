@@ -44,6 +44,7 @@ if __name__ == "__main__":
                 'listener-audio=listener.pipeaudio:main',
                 'listener-uinput-device=listener.uinputdriver:main',
                 'listener-uinput-rebuild-mapping=listener.uinputdriver:rebuild_mapping',
+                'listener-default-contexts=listener.models:write_default_main',
             ],
         },
         install_requires=requirements,

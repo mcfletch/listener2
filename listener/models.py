@@ -16,6 +16,33 @@ def null_transform(words, start_index=0, end_index=0):
     return words
 
 
+def justonce_property(function):
+    """Property that only runs function once per instance unless deleted
+    
+    Note: the value None is *not* accepted as a 
+    result, so it will result in the function 
+    being run until something else is returned.
+    """
+    key = '__%s_value' % (function.__name__,)
+
+    def getter(self):
+        current = self.__dict__.get(key)
+        if current is None:
+            self.__dict__[key] = current = function(self)
+        return current
+
+    def setter(self, value):
+        self.__dict__[key] = value
+
+    def deller(self):
+        try:
+            del self.__dict__[key]
+        except KeyError:
+            raise AttributeError(key)
+
+    return property(fget=getter, fset=setter, fdel=deller, doc=function.__doc__,)
+
+
 class Rule(pydantic.BaseModel):
     """Represents a single (user defined) rule for interpreting dictation"""
 
@@ -92,9 +119,14 @@ class ScorerDefinition(pydantic.BaseModel):
     def by_name(cls, name):
         name = os.path.basename(name)
         for path in [defaults.MODEL_CACHE]:  # some shared storage too
-            filename = os.path.join(path, '%s.scorer' % (name))
+            if name == 'upstream':
+                filename = defaults.CACHED_SCORER_FILE
+            else:
+                filename = os.path.join(path, '%s.scorer' % (name))
             if os.path.exists(filename):
                 return cls(name=name, language_model=filename, type=KENLM,)
+            else:
+                log.info("No file: %s", filename)
         raise ValueError("Uknown scorer: %s" % (name,))
 
 
@@ -104,7 +136,7 @@ class ContextDefinition(pydantic.BaseModel):
     """
 
     name: str = ''
-    scorers: List[str] = []
+    scorers: List[ScorerDefinition] = []
     rules: str = 'default'
 
     @classmethod
@@ -115,6 +147,9 @@ class ContextDefinition(pydantic.BaseModel):
             defaults.CONTEXT_DIR,
             defaults.BUILTIN_CONTEXTS,
         ]:
+            if not os.path.exists(directory):
+                log.warning("Expected directory %s is missing")
+                continue
             for name in os.listdir(directory):
                 filename = os.path.join(directory, name)
                 if os.path.isdir(filename):
@@ -127,14 +162,34 @@ class ContextDefinition(pydantic.BaseModel):
         """Return all defined contexts (user and built-in)"""
         result = []
         for name in cls.context_names():
-            result.append(cls.load_config(name=name))
+            result.append(cls.by_name(name=name))
         return result
 
     @classmethod
     def write_default_contexts(cls):
+        """Write our default contexts to disk"""
         code = ContextDefinition(
-            name='code', scorers=[ScorerDefinition.by_name('code')], rules='code',
+            name='english-python',
+            scorers=[
+                ScorerDefinition.by_name('code'),
+                ScorerDefinition.by_name('default'),
+                ScorerDefinition.by_name('upstream'),
+            ],
+            rules='code',
         )
+        code.save()
+        default = ContextDefinition(
+            name='english-general',
+            scorers=[ScorerDefinition.by_name('default')],
+            rules='default',
+        )
+        default.save()
+        default = ContextDefinition(
+            name='english-upstream',
+            scorers=[ScorerDefinition.by_name('upstream')],
+            rules='default',
+        )
+        default.save()
 
     @classmethod
     def directory(cls, name):
@@ -151,7 +206,7 @@ class ContextDefinition(pydantic.BaseModel):
         return os.path.join(cls.directory(name), 'config.json')
 
     @classmethod
-    def load_config(cls, name):
+    def by_name(cls, name):
         """Load configuration from the named file"""
         filename = cls.config_file(name)
         if os.path.exists(filename):
@@ -164,7 +219,7 @@ class ContextDefinition(pydantic.BaseModel):
         else:
             return cls(name=name)
 
-    def save_config(self):
+    def save(self):
         """Save the context configuration to a file"""
         content = self.json()
         filename = self.config_file(self.name)
@@ -175,7 +230,16 @@ class ContextDefinition(pydantic.BaseModel):
 def atomic_write(filename, content):
     """Write the content to filename either succeeding or not replacing it"""
     temporary = filename + '~'
+    directory = os.path.dirname(filename)
+    if not os.path.exists(directory):
+        os.makedirs(directory, 0o700)
     with open(temporary, 'w') as fh:
         fh.write(content)
     os.rename(temporary, filename)
     return filename
+
+
+def write_default_main():
+    """Entry point for writing out the default contexts"""
+    logging.basicConfig(level=logging.INFO)
+    ContextDefinition.write_default_contexts()
