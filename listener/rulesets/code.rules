@@ -1,0 +1,16 @@
+# Rules for editing code by voice
+
+#include punctuation
+#include case
+#include codenames
+#include default
+#include codenames
+
+not equal => '!='
+double equal => '=='
+double equals => '=='
+asterisk asterisk  => '**'^
+star star => ^'**'^
+arrow symbol => '=>'
+
+dunder ${word} => dunder()

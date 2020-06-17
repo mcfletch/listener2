@@ -1,0 +1,20 @@
+# navigation rules 
+
+# go up => \key (Up)
+# go down => \key (Down)
+# go left => \key (Left)
+# go right => \key (Right)
+# go home => \key (Home)
+# go end => \key (End)
+# indent => \key (Tab)
+# reduce indent => \key (Shift+Tab)
+# unselect => \key (Escape)
+# escape => \key (Escape)
+# alt ${word} => \key (Alt+${word})
+
+# select left => \key (Shift+Ctrl+Left)
+# select right => \key (Sift+Ctrl+Left)
+# select ${number} words => \key (Shift+Ctrl+Right)
+# select back ${number} words => \key (Shift+Ctrl+Right)
+# select up line => \key (Shift+Up)
+# select down line => \key (Shift+Down)

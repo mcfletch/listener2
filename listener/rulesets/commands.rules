@@ -1,0 +1,22 @@
+# Listener control commands
+
+set-context ${word} => context()
+stop-listening => stop_listening()
+start-listening => start_listening()
+go-to-sleep => stop_listening()
+wake-up => start_listening()
+shut-down => shutdown()
+
+spell-that => correction()
+fix-that => correction()
+correct-that => correction()
+
+spell-out => spell_on()
+spell-start => spell_on()
+stop-spell => spell_off()
+spell-stop =>  spell_off()
+
+type-out ${phrase} => spell_on()
+
+undo-that => undo()
+scratch-that => undo()

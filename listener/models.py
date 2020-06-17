@@ -5,6 +5,8 @@ from . import defaults
 
 log = logging.getLogger(__name__)
 
+KENLM = 'kenlm'
+
 
 def null_transform(words, start_index=0, end_index=0):
     """Used when the user references an unknown transformation
@@ -82,8 +84,18 @@ class Dictionary(pydantic.BaseModel):
 class ScorerDefinition(pydantic.BaseModel):
     """Defines a scorer for a particular context"""
 
-    type: str = 'kenlm'
+    type: str = KENLM
+    name: str = 'default'
     language_model: str = defaults.CACHED_SCORER_FILE
+
+    @classmethod
+    def by_name(cls, name):
+        name = os.path.basename(name)
+        for path in [defaults.MODEL_CACHE]:  # some shared storage too
+            filename = os.path.join(path, '%s.scorer' % (name))
+            if os.path.exists(filename):
+                return cls(name=name, language_model=filename, type=KENLM,)
+        raise ValueError("Uknown scorer: %s" % (name,))
 
 
 class ContextDefinition(pydantic.BaseModel):
@@ -92,16 +104,44 @@ class ContextDefinition(pydantic.BaseModel):
     """
 
     name: str = ''
-    scorers: List[str] = [
-        ScorerDefinition(type='kenlm', language_model=defaults.CACHED_SCORER_FILE,),
-    ]
+    scorers: List[str] = []
     rules: str = 'default'
+
+    @classmethod
+    def context_names(cls):
+        """Return the ContextDefinitions for all contexts known"""
+        seen = set()
+        for directory in [
+            defaults.CONTEXT_DIR,
+            defaults.BUILTIN_CONTEXTS,
+        ]:
+            for name in os.listdir(directory):
+                filename = os.path.join(directory, name)
+                if os.path.isdir(filename):
+                    if name not in seen:
+                        yield name
+                        seen.add(name)
+
+    @classmethod
+    def all_contexts(cls):
+        """Return all defined contexts (user and built-in)"""
+        result = []
+        for name in cls.context_names():
+            result.append(cls.load_config(name=name))
+        return result
+
+    @classmethod
+    def write_default_contexts(cls):
+        code = ContextDefinition(
+            name='code', scorers=[ScorerDefinition.by_name('code')], rules='code',
+        )
 
     @classmethod
     def directory(cls, name):
         """Calculate our directory"""
-        if name == 'core':
-            return os.path.join(defaults.BUILTIN_CONTEXTS, name)
+        core = os.path.join(defaults.BUILTIN_CONTEXTS, name)
+        if os.path.exists(core):
+            return core
         else:
             return os.path.join(defaults.CONTEXT_DIR, name)
 
@@ -126,8 +166,6 @@ class ContextDefinition(pydantic.BaseModel):
 
     def save_config(self):
         """Save the context configuration to a file"""
-        if self.name == 'core':
-            return False
         content = self.json()
         filename = self.config_file(self.name)
         atomic_write(filename, content)

@@ -35,7 +35,6 @@ CACHED_SCORER_FILE = os.path.join(
     MODEL_CACHE, SCORER_FILE % {'version': DEFAULT_DEEPSPEECH_VERSION,}
 )
 
-
 RAW_EVENTS = os.path.join(RUN_DIR, 'events')
 FINAL_EVENTS = os.path.join(RUN_DIR, 'clean-events')
 
