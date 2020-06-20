@@ -136,9 +136,11 @@ class Context(object):
         estimates = []
         for scorer in self.scorers:
             # Show scores and n-gram matches
-            log.info("With the %s scorer", scorer.name)
-            for rating, transcript in scorer.score(event)[:10]:
-                log.info("%8s => %r", '%0.2f' % (rating), transcript.text)
+            ratings = scorer.score(event)[:10]
+            if ratings and ratings[0][1].text != '':  # only log non-empty scored values
+                log.info("With the %s scorer", scorer.name)
+                for rating, transcript in ratings:
+                    log.info("%8s => %r", '%0.2f' % (rating), transcript.text)
         return sorted(estimates)
 
     def apply_rules(self, event):
