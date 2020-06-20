@@ -148,7 +148,7 @@ class ContextDefinition(pydantic.BaseModel):
             defaults.BUILTIN_CONTEXTS,
         ]:
             if not os.path.exists(directory):
-                log.warning("Expected directory %s is missing")
+                log.warning("Expected directory %s is missing", directory)
                 continue
             for name in os.listdir(directory):
                 filename = os.path.join(directory, name)
