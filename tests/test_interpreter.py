@@ -1,9 +1,5 @@
 import unittest
-from listener import interpreter, ruleloader
-from listener.models import (
-    Utterance,
-    Transcript,
-)
+from listener import interpreter, ruleloader, context, models
 
 
 class TestInterpreter(unittest.TestCase):
@@ -18,7 +14,7 @@ class TestInterpreter(unittest.TestCase):
     def test_text_expansion(self):
         rules, ruleset = ruleloader.load_rules('default')
         for rule in ruleset:
-            match = interpreter.match_rules(rule.match, rules)
+            match = models.match_rules(rule.match, rules)
             assert match
             assert match[0].target == rule.target
             result = match[0](*match[1:])
@@ -42,9 +38,7 @@ class TestInterpreter(unittest.TestCase):
             ('camel case forgotten dog', ' ForgottenDog ',),
             ('all together there is none', 'thereisnone'),
         ]:
-            result = interpreter.words_to_text(
-                interpreter.apply_rules(spoken.split(' '), rules)
-            )
+            result = models.words_to_text(models.apply_rules(spoken.split(' '), rules))
             assert result == expected, (spoken, result)
 
     def test_context_loading(self):
@@ -57,11 +51,11 @@ class TestInterpreter(unittest.TestCase):
         assert result.transcripts[0].text == '', 'Did not recognise a junk utterance'
 
 
-JUNK_UTTERANCE = utt = Utterance(
+JUNK_UTTERANCE = utt = models.Utterance(
     partial=False,
     final=True,
     transcripts=[
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=[],
@@ -70,7 +64,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[],
             confidence=1.178935170173645,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['i'],
@@ -79,7 +73,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-10.575060844421387,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['a'],
@@ -88,7 +82,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-13.048016548156738,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['o'],
@@ -97,7 +91,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-13.359726905822754,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['m'],
@@ -106,7 +100,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-13.824394226074219,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['h'],
@@ -115,7 +109,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-13.980472564697266,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['e'],
@@ -124,7 +118,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-14.323654174804688,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['n'],
@@ -133,7 +127,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-14.946478843688965,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['d'],
@@ -142,7 +136,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-15.496161460876465,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['he'],
@@ -151,7 +145,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-15.78717041015625,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['t'],
@@ -160,7 +154,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-16.002553939819336,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['f'],
@@ -169,7 +163,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-16.987838745117188,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['s'],
@@ -178,7 +172,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-17.056884765625,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['g'],
@@ -187,7 +181,7 @@ JUNK_UTTERANCE = utt = Utterance(
             word_starts=[0.47999998927116394],
             confidence=-17.59112548828125,
         ),
-        Transcript(
+        models.Transcript(
             partial=False,
             final=True,
             words=['r'],

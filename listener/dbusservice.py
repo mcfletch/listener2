@@ -163,21 +163,6 @@ class ListenerService(dbus.service.Object):
     def final_event(self, interpreted, text, uttid):
         return interpreted
 
-    def input_thread(self):
-        """Background thread which processes input and generates events"""
-        from . import eventreceiver
-
-        for event in eventreceiver.read_from_socket(
-            sockname=EVENTS, connect_backoff=2.0,
-        ):
-            if event.get('final'):
-                for transcript in event['transcripts']:
-                    new_words = apply_rules(transcript['words'], rules)
-                    transcript['text'] = words_to_text(new_words)
-                    transcript['words'] = new_words
-                    break
-                queue.put(event)
-
 
 class PipelineService(dbus.service.Object):
     # current pipeline manipulation...

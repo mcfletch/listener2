@@ -243,3 +243,57 @@ def write_default_main():
     """Entry point for writing out the default contexts"""
     logging.basicConfig(level=logging.INFO)
     ContextDefinition.write_default_contexts()
+
+
+def match_rules(words, rules):
+    """Find rules which match in the rules"""
+    from . import ruleloader
+
+    for start in range(len(words)):
+        branch = rules
+        i = 0
+        for i, word in enumerate(words[start:]):
+            if word in branch:
+                branch = branch[word]
+            elif branch is not rules and ruleloader.WORD_MARKER in branch:
+                branch = branch[ruleloader.WORD_MARKER]
+            elif branch is not rules and ruleloader.PHRASE_MARKER in branch:
+                branch = branch[ruleloader.PHRASE_MARKER]
+                break
+            else:
+                # we don't match any further rules, do we
+                # have a current match?
+                i -= 1
+                break
+        if None in branch:
+            rule = branch[None]
+            return rule, words, start, start + i + 1
+
+
+def apply_rules(words, rules):
+    """Iteratively apply rules from rule-set until nothing changes"""
+    working = words[:]
+    for i in range(20):
+        match = match_rules(working, rules)
+        if match:
+            working = match[0](*match[1:])
+        else:
+            break
+    return working
+
+
+def words_to_text(words):
+    """Compress words taking no-space markers into effect..."""
+    result = []
+    no_space = False
+    for item in words:
+        if item == '^':
+            no_space = True
+        else:
+            if not no_space:
+                result.append(' ')
+            result.append(item)
+            no_space = False
+    if not no_space:
+        result.append(' ')
+    return ''.join(result)

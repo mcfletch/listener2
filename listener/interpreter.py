@@ -2,6 +2,7 @@
 """
 import re, logging, os, json
 from . import defaults, ruleloader, models
+from .context import Context
 import pydantic
 
 log = logging.getLogger(__name__)
@@ -30,130 +31,6 @@ shebang => ^'#!'
 
 #     def interpret(self, event):
 #         """Attempt to determine what this event likely means"""
-
-
-def match_rules(words, rules):
-    """Find rules which match in the rules"""
-    for start in range(len(words)):
-        branch = rules
-        i = 0
-        for i, word in enumerate(words[start:]):
-            if word in branch:
-                branch = branch[word]
-            elif branch is not rules and ruleloader.WORD_MARKER in branch:
-                branch = branch[ruleloader.WORD_MARKER]
-            elif branch is not rules and ruleloader.PHRASE_MARKER in branch:
-                branch = branch[ruleloader.PHRASE_MARKER]
-                break
-            else:
-                # we don't match any further rules, do we
-                # have a current match?
-                i -= 1
-                break
-        if None in branch:
-            rule = branch[None]
-            return rule, words, start, start + i + 1
-
-
-def apply_rules(words, rules):
-    """Iteratively apply rules from rule-set until nothing changes"""
-    working = words[:]
-    for i in range(20):
-        match = match_rules(working, rules)
-        if match:
-            working = match[0](*match[1:])
-        else:
-            break
-    return working
-
-
-def words_to_text(words):
-    """Compress words taking no-space markers into effect..."""
-    result = []
-    no_space = False
-    for item in words:
-        if item == '^':
-            no_space = True
-        else:
-            if not no_space:
-                result.append(' ')
-            result.append(item)
-            no_space = False
-    if not no_space:
-        result.append(' ')
-    return ''.join(result)
-
-
-class KenLMScorer(pydantic.BaseModel):
-    definition: models.ScorerDefinition = None
-
-    _scorer = None
-
-    @property
-    def name(self):
-        return self.definition.name
-
-    @models.justonce_property
-    def scorer(self):
-        """Load our scorer model (a KenLM model by default)"""
-        import kenlm
-
-        model = kenlm.Model(self.definition.language_model)
-        return model
-
-    def score(self, utterance: models.Utterance):
-        """Score the utterance"""
-        scorer = self.scorer
-        scores = []
-        for transcript in utterance.transcripts:
-            score = scorer.score(transcript.text)
-            scores.append((score, transcript))
-        return sorted(scores, key=lambda x: x[0], reverse=True)
-
-
-class Context(object):
-    def __init__(self, name):
-        self.name = name
-        self.config = models.ContextDefinition.by_name(self.name)
-
-    SCORER_CLASSES = {
-        'kenlm': KenLMScorer,
-    }
-
-    @models.justonce_property
-    def rules(self):
-        return ruleloader.load_rules(self.config.rules)
-
-    @models.justonce_property
-    def scorers(self):
-        return [
-            self.SCORER_CLASSES[scorer.type](definition=scorer)
-            for scorer in self.config.scorers
-            if scorer.type in self.SCORER_CLASSES
-        ]
-
-    def score(self, event):
-        estimates = []
-        for scorer in self.scorers:
-            # Show scores and n-gram matches
-            ratings = scorer.score(event)[:10]
-            if ratings and ratings[0][1].text != '':  # only log non-empty scored values
-                log.info("With the %s scorer", scorer.name)
-                for rating, transcript in ratings:
-                    log.info("%8s => %r", '%0.2f' % (rating), transcript.text)
-        return sorted(estimates)
-
-    def apply_rules(self, event):
-        rules = self.rules
-        for transcript in event.transcripts:
-            original = transcript.words[:]
-            new_words = apply_rules(transcript.words, rules)
-            if new_words != original:
-                transcript.text = words_to_text(new_words)
-                transcript.words = new_words
-            log.debug("%r => %r", words_to_text(original), transcript.text)
-            break
-        return event
 
 
 def get_options():
