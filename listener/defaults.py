@@ -46,9 +46,13 @@ DOCKER_IMAGE = '%s-server' % (APP_NAME,)
 
 SAMPLE_RATE = 16000
 
+PHRASE_MARKER = '${phrase}'
+WORD_MARKER = '${word}'
+
 
 def setup_logging(options):
     logging.basicConfig(
         level=logging.DEBUG if options.verbose else logging.WARNING,
         format='%(asctime)s:%(levelname)s:%(name)s:%(lineno)s %(message)s',
     )
+
