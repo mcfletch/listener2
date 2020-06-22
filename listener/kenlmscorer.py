@@ -30,5 +30,6 @@ class KenLMScorer(pydantic.BaseModel):
         scores = []
         for transcript in utterance.transcripts:
             score = scorer.score(transcript.text)
-            scores.append((score, transcript))
-        return sorted(scores, key=lambda x: x[0], reverse=True)
+            # log probability mulitplication based on the scorer
+            transcript.confidence += score
+        return utterance

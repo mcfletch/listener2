@@ -176,10 +176,6 @@ class ListenerEngine(IBus.Engine):
                     self.no_space = True
             # TODO: if confidence below some threshold, then we want to
             # show options, but that doesn't seem to work at all :(
-            # best_guess = interpreter.words_to_text(
-            #     interpreter.apply_rules(best_guess,self.interpreter_rules)
-            # )
-            # log.debug("> %s", best_guess)
             block = ''.join(to_send)
             log.debug('> %s', block)
             self.commit_text(IBus.Text.new_from_string(''.join(block)))

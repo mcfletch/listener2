@@ -1,5 +1,12 @@
 import unittest
-from listener import interpreter, ruleloader, context, models
+from listener import (
+    interpreter,
+    ruleloader,
+    context,
+    models,
+    defaults,
+    fuzzymatching,
+)
 
 
 class TestInterpreter(unittest.TestCase):
@@ -14,16 +21,21 @@ class TestInterpreter(unittest.TestCase):
     def test_text_expansion(self):
         rules, ruleset = ruleloader.load_rules('default')
         for rule in ruleset:
-            match = models.match_rules(rule.match, rules)
+            words = rule.match[:]
+            if words[-1] == defaults.PHRASE_MARKER:
+                words[-1:] = ['moo', 'over', 'there']
+            elif words[-1] == defaults.WORD_MARKER:
+                words = [(w if w != defaults.WORD_MARKER else 'moo') for w in words]
+            match = models.match_rules(words, rules)
             assert match
-            assert match[0].target == rule.target
-            result = match[0](*match[1:])
-            if match[0].text:
-                assert match[0].text in result, (rule.match, rules, result)
-            if match[0].no_space_after:
-                assert result[-1] == '^', result
-            if match[0].no_space_before:
-                assert result[0] == '^', result
+            assert match.rule == rule
+            result = match.rule(match)
+            if match.rule.text:
+                assert match.rule.text in result.words, result
+            if match.rule.no_space_after:
+                assert result.words[-1] == '^', result
+            if match.rule.no_space_before:
+                assert result.words[0] == '^', result
 
     def test_apply_rules(self):
         rules, ruleset = ruleloader.load_rules('default')
@@ -38,17 +50,25 @@ class TestInterpreter(unittest.TestCase):
             ('camel case forgotten dog', ' ForgottenDog ',),
             ('all together there is none', 'thereisnone'),
         ]:
-            result = models.words_to_text(models.apply_rules(spoken.split(' '), rules))
+            transcript = models.Transcript(words=spoken.split(' '), confidence=0,)
+            words = models.apply_rules(transcript, rules, commit=False)
+            assert transcript.confidence > 0, transcript.confidence
+            result = models.words_to_text(words)
             assert result == expected, (spoken, result)
 
     def test_context_loading(self):
-        core = interpreter.Context('core')
+        core = interpreter.Context.by_name('english-general')
 
     def test_junk_utterance_handling(self):
-        core = interpreter.Context('core')
+        core = interpreter.Context.by_name('english-general')
         result = core.apply_rules(JUNK_UTTERANCE.copy())
         assert result.transcripts
         assert result.transcripts[0].text == '', 'Did not recognise a junk utterance'
+
+    def test_distance_calculation(self):
+        rule = models.Rule(match=['cap-camel', defaults.PHRASE_MARKER])
+        distances = fuzzymatching.measure_distance(['caps', 'camel'], rule)
+        assert distances[0] == (1, ['caps', 'camel'], ['cap-camel']), distances[0]
 
 
 JUNK_UTTERANCE = utt = models.Utterance(

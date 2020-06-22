@@ -1,6 +1,6 @@
 """Data-model class for a rule"""
 import pydantic, os, logging, json
-from typing import List, Optional, Callable, Dict
+from typing import List, Optional, Callable, Dict, Union
 from . import defaults
 
 log = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class Rule(pydantic.BaseModel):
 
     match: List[str] = []
     target: str = ''  # textual definition of the target
-    text: Optional[str]
+    text: Optional[Union[str, List[str]]]
     no_space_after: bool = False
     no_space_before: bool = False
     caps_after: bool = False
@@ -84,6 +84,8 @@ class Transcript(pydantic.BaseModel):
     word_starts: List[float] = []  # start of each space-separated block
     confidence: float = 0.0  # estimate of confidence for the whole transcript...
 
+    rule_matches: List['RuleMatch'] = []  # set of matched rules...
+
 
 class Utterance(pydantic.BaseModel):
     """Represents a single utterance detected by the backend"""
@@ -92,6 +94,18 @@ class Utterance(pydantic.BaseModel):
     partial: bool = False
     final: bool = True
     transcripts: List[Transcript] = []
+
+    def sort(self):
+        """Apply sorting to our transcripts
+        
+        uses transcript.confidence to reverse-sort the transcripts
+        such that the highest-confidence is first
+        """
+        self.transcripts.sort(key=lambda x: x.confidence, reverse=True)
+
+    def best_guess(self):
+        """Give our current best-guess"""
+        return self.transcripts[0]
 
 
 class Dictionary(pydantic.BaseModel):
@@ -109,11 +123,16 @@ class Dictionary(pydantic.BaseModel):
 
 
 class ScorerDefinition(pydantic.BaseModel):
-    """Defines a scorer for a particular context"""
+    """Defines a scorer for a particular context
+    
+    type -- key into context.Context.
+    
+    """
 
     type: str = KENLM
     name: str = 'default'
-    language_model: str = defaults.CACHED_SCORER_FILE
+    language_model: Optional[str] = defaults.CACHED_SCORER_FILE
+    command_bias: Optional[float] = 1.0
 
     @classmethod
     def by_name(cls, name):
@@ -172,21 +191,26 @@ class ContextDefinition(pydantic.BaseModel):
             name='english-python',
             scorers=[
                 ScorerDefinition.by_name('code'),
-                ScorerDefinition.by_name('default'),
-                ScorerDefinition.by_name('upstream'),
+                ScorerDefinition(name='commands', type='commands',),
             ],
             rules='code',
         )
         code.save()
         default = ContextDefinition(
             name='english-general',
-            scorers=[ScorerDefinition.by_name('default')],
+            scorers=[
+                ScorerDefinition.by_name('default'),
+                ScorerDefinition(name='commands', type='commands',),
+            ],
             rules='default',
         )
         default.save()
         default = ContextDefinition(
             name='english-upstream',
-            scorers=[ScorerDefinition.by_name('upstream')],
+            scorers=[
+                ScorerDefinition.by_name('upstream'),
+                ScorerDefinition(name='commands', type='commands',),
+            ],
             rules='default',
         )
         default.save()
@@ -227,6 +251,13 @@ class ContextDefinition(pydantic.BaseModel):
         return True
 
 
+class Context(pydantic.BaseModel):
+    """Base class for live context instances"""
+
+    name: str = ''
+    config: ContextDefinition = None
+
+
 def atomic_write(filename, content):
     """Write the content to filename either succeeding or not replacing it"""
     temporary = filename + '~'
@@ -245,20 +276,70 @@ def write_default_main():
     ContextDefinition.write_default_contexts()
 
 
-def match_rules(words, rules):
-    """Find rules which match in the rules"""
-    from . import ruleloader
+class RuleMatch(pydantic.BaseModel):
+    """Represents a match made by a rule to a set of words
+    
+    Note:
 
+        You cannot  linearize a rule match to  json because
+        it includes a significant number of cross references 
+        back to itself
+    """
+
+    class Config:
+        # Sigh, settable properties do *not*
+        # work nicely with pydantic, as it wants
+        # to pre-validate the property before it
+        # calls the function
+        extra = pydantic.Extra.allow
+
+    rule: Rule = None
+    words: List[str] = []
+    start_index: int = 0
+    stop_index: int = None
+    confidence: float = 0.0
+    context: Union[None, Context] = None
+    # words that matched word placeholders
+    var_words: List[str] = []
+    # trailing sequence of words that matched phrase placeholder
+    var_phrase: Union[None, List[str]] = None
+    commit: bool = False
+
+    @property
+    def prefix(self):
+        return self.words[: self.start_index]
+
+    @property
+    def suffix(self):
+        return self.words[self.stop_index :]
+
+    @property
+    def matched(self):
+        return self.words[self.start_index : self.stop_index]
+
+    def set_matched(self, result):
+        self.words[self.start_index : self.stop_index] = result
+
+
+SPECIAL_KEYS = (defaults.WORD_MARKER, defaults.PHRASE_MARKER, None)
+
+
+def iter_matches(words, rules):
+    """Generate all rule-matchings for the given words across all rules"""
     for start in range(len(words)):
         branch = rules
-        i = 0
+        var_phrase = None
+        var_words = []
         for i, word in enumerate(words[start:]):
             if word in branch:
                 branch = branch[word]
-            elif branch is not rules and ruleloader.WORD_MARKER in branch:
-                branch = branch[ruleloader.WORD_MARKER]
-            elif branch is not rules and ruleloader.PHRASE_MARKER in branch:
-                branch = branch[ruleloader.PHRASE_MARKER]
+            elif branch is not rules and defaults.WORD_MARKER in branch:
+                branch = branch[defaults.WORD_MARKER]
+                var_words.append(word)
+            elif branch is not rules and defaults.PHRASE_MARKER in branch:
+                branch = branch[defaults.PHRASE_MARKER]
+                # IFF rules match the phrase, process the phrase
+                var_phrase = words[i:]
                 break
             else:
                 # we don't match any further rules, do we
@@ -267,16 +348,74 @@ def match_rules(words, rules):
                 break
         if None in branch:
             rule = branch[None]
-            return rule, words, start, start + i + 1
+            return RuleMatch(
+                rule=rule,
+                words=words[:],
+                start_index=start,
+                stop_index=start + i + 1,
+                var_words=var_words,
+                var_phrase=var_phrase,
+            )
 
 
-def apply_rules(words, rules):
+def match_rules(words, rules):
+    """Find rules which match in the rules"""
+
+    for start in range(len(words)):
+        branch = rules
+        var_phrase = None
+        var_words = []
+        for i, word in enumerate(words[start:]):
+            if word in branch:
+                branch = branch[word]
+            elif branch is not rules and defaults.WORD_MARKER in branch:
+                branch = branch[defaults.WORD_MARKER]
+                var_words.append(word)
+            elif branch is not rules and defaults.PHRASE_MARKER in branch:
+                branch = branch[defaults.PHRASE_MARKER]
+                var_phrase = words[i:]
+                i = len(words) - start
+                break
+            else:
+                # we don't match any further rules, do we
+                # have a current match?
+                i -= 1
+                break
+        if None in branch:  # a rule stops at this point
+            rule = branch[None]
+            return RuleMatch(
+                rule=rule,
+                words=words[:],
+                start_index=start,
+                stop_index=start + i + 1,
+                var_words=var_words,
+                var_phrase=var_phrase,
+            )
+
+
+def apply_rules(transcript, rules, context=None, match_bias=0.5, commit=False):
     """Iteratively apply rules from rule-set until nothing changes"""
-    working = words[:]
     for i in range(20):
+        working = transcript.words[:]
         match = match_rules(working, rules)
         if match:
-            working = match[0](*match[1:])
+
+            match.transcript = transcript
+            match.context = context
+            match.commit = commit
+            transcript.rule_matches = transcript.rule_matches + [match]
+
+            transcript.confidence += match_bias
+            new_working = match.rule(match)
+
+            if new_working == working:
+                # didn't change the output, avoid re-processing
+                log.debug("%s did not modify the input %s", match.rule, match.words)
+                break
+            log.debug(" => %s (%s)", new_working, match.rule.match)
+            working = new_working
+
+            transcript.words = working
         else:
             break
     return working
@@ -297,3 +436,7 @@ def words_to_text(words):
     if not no_space:
         result.append(' ')
     return ''.join(result)
+
+
+# Forward reference resolutions
+Transcript.update_forward_refs()

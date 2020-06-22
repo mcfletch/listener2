@@ -23,16 +23,6 @@ shebang => ^'#!'
 """
 
 
-# class Context(attr.s):
-#     """A chaining store of context based on communication environment"""
-#     parent: 'Context' = None
-#     rules: 'List[RuleSet]' = None
-#     history: 'List[Utterance]' = None
-
-#     def interpret(self, event):
-#         """Attempt to determine what this event likely means"""
-
-
 def get_options():
     import argparse
 
@@ -61,7 +51,7 @@ def get_options():
     )
     parser.add_argument(
         '--context',
-        default='english-python',
+        default='english-general',
         choices=sorted(models.ContextDefinition.context_names()),
         help='Context in which to start processing',
     )
@@ -75,7 +65,7 @@ def main():
     import json
 
     # Start in the wikipedia context...
-    context = Context(options.context)
+    context = Context.by_name(options.context)
     if not options.scorer:
         queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
     else:
@@ -89,10 +79,12 @@ def main():
             # lots of breath and pop sounds, but that's just an artifact of this
             # particular language model rather than the necessary result of hearing
             # the pop
-            if event.transcripts[0].words in ([''], ['he']):
+            if event.transcripts[0].words in ([], [''], ['he']):
                 continue
-            if not options.scorer:
-                event = context.apply_rules(event)
-                queue.put(event)
-            else:
-                context.score(event)
+            context.score(event)
+            best_guess = event.best_guess()
+            for t in event.transcripts:
+                log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
+            event = context.apply_rules(event)
+            log.info('    ==> %s', event.best_guess().words)
+            queue.put(event)

@@ -10,7 +10,7 @@ class TokenizerTests(TestCase):
         self.workdir = tempfile.mkdtemp(
             prefix='listener-', suffix='-test', dir='/dev/shm'
         )
-        self.context = interpreter.Context('default')
+        self.context = interpreter.Context.by_name('english-general')
         self.dictionary = tokenizer.default_dictionary()
         self.tokenizer = tokenizer.Tokenizer(self.dictionary)
 

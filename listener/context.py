@@ -1,51 +1,72 @@
 import re, logging, os, json
 import pydantic
 from . import defaults, ruleloader, models
-from . import models, kenlmscorer
+from . import models, kenlmscorer, commandscorer
 
 log = logging.getLogger(__name__)
 
 
-class Context(object):
-    def __init__(self, name):
-        self.name = name
-        self.config = models.ContextDefinition.by_name(self.name)
+class Context(models.Context):
+    @classmethod
+    def by_name(cls, name):
+        """Load the context by name from disk"""
+        return cls(name=name, config=models.ContextDefinition.by_name(name),)
 
     SCORER_CLASSES = {
         'kenlm': kenlmscorer.KenLMScorer,
+        'commands': commandscorer.CommandScorer,
     }
 
     @models.justonce_property
-    def rules(self):
+    def loaded_rules(self):
         return ruleloader.load_rules(self.config.rules)
+
+    @property
+    def rules(self):
+        """Get the rule set for interpretation"""
+        return self.loaded_rules[0]
+
+    @property
+    def rule_set(self):
+        """Get the rule-set for editing purposes"""
+        return self.loaded_rules[1]
 
     @models.justonce_property
     def scorers(self):
         return [
-            self.SCORER_CLASSES[scorer.type](definition=scorer)
+            self.SCORER_CLASSES[scorer.type](definition=scorer, context=self,)
             for scorer in self.config.scorers
             if scorer.type in self.SCORER_CLASSES
         ]
 
-    def score(self, event):
+    def score(self, event: models.Utterance, max_count: int = 20):
+        """Apply our scorers to the event
+        
+        Once we have the scorers applied we have a confidence
+        ranking for the transcripts, then we want to bias
+        based on our context
+        """
         estimates = []
+        scored_transcripts = []
         for scorer in self.scorers:
             # Show scores and n-gram matches
-            ratings = scorer.score(event)[:10]
-            if ratings and ratings[0][1].text != '':  # only log non-empty scored values
-                log.info("With the %s scorer", scorer.name)
-                for rating, transcript in ratings:
-                    log.info("%8s => %r", '%0.2f' % (rating), transcript.text)
-        return sorted(estimates)
+            log.debug("Score with %s", scorer.definition.name)
+            scorer.score(event)
+        event.sort()
 
-    def apply_rules(self, event):
+    def apply_rules(self, event: models.Utterance):
+        """Search for key-words in the event transcripts, apply bias to commands
+        
+        event -- utterance being processed, having already been scored such that
+                 we agree to process the first item
+        
+        """
         rules = self.rules
         for transcript in event.transcripts:
             original = transcript.words[:]
-            new_words = models.apply_rules(transcript.words, rules)
+            new_words = models.apply_rules(transcript, rules)
             if new_words != original:
-                transcript.text = models.words_to_text(new_words)
                 transcript.words = new_words
-            log.debug("%r => %r", models.words_to_text(original), transcript.text)
+                transcript.text = models.words_to_text(new_words)
             break
         return event

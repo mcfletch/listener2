@@ -1,37 +1,60 @@
 """Load rules from rule-sets on disk"""
-import logging, os
+import logging, os, ast
 from .ruleregistry import rule_by_name
 from .errors import MissingRules
 from . import defaults
 from . import transforms
 from .models import Rule, null_transform
+from .defaults import PHRASE_MARKER, WORD_MARKER
+
+try:
+    unicode
+except NameError:
+    unicode = str
 
 log = logging.getLogger(__name__)
 
-PHRASE_MARKER = '${phrase}'
-WORD_MARKER = '${word}'
 
 # TODO: allow for plugins that define their own transforms
 # and actions...
+
+
+def bad_text_types(text):
+    if not isinstance(text, (unicode, list, tuple)):
+        return 1
+    if isinstance(text, (list, tuple)):
+        for i, item in enumerate(text):
+            if not isinstance(item, unicode):
+                return 2
 
 
 def text_entry_rule(match, target):
     """Create a rule from the text-entry mini-language"""
     no_space_before = target.startswith('^')
     no_space_after = target.endswith('^')
-    text = bytes(target.strip('^')[1:-1], 'utf-8').decode('unicode_escape')
+    text = ast.literal_eval(target.strip('^'))
+    if bad_text_types(text):
+        raise TypeError(
+            match,
+            text,
+            "Expect python-literal syntax for unicode, bytes, list-of-unicode or tuple of unicode",
+        )
 
-    def apply_rule(words, start_index=0, end_index=-1):
+    def apply_rule(match):
         """Given a match on the rule, produce modified result"""
-        prefix = words[:start_index]
-        suffix = words[end_index:]
+        match = match.copy()
         result = []
         if no_space_before:
             result.append('^')
-        result.append(text)
+        if isinstance(text, (unicode, bytes)):
+            result.append(text)
+        elif isinstance(text, (list, tuple)):
+            result.extend(text)
+        else:
+            raise TypeError()
         if no_space_after:
             result.append('^')
-        return prefix + result + suffix
+        return match.prefix + result + match.suffix
 
     return Rule(
         match=match,
@@ -58,16 +81,14 @@ def transform_rule(match, target):
     phrase = match[-1] == PHRASE_MARKER
     word = match[-1] == WORD_MARKER
 
-    def apply_rule(words, start_index=0, end_index=-1):
+    def apply_rule(match):
         """Given a match, transform and return the results"""
-        working = words[:]
         if phrase:
-            working[start_index:] = transformation(words[end_index - 1 :])
+            result = transformation(match.var_phrase)
         else:
-            working[start_index:end_index] = transformation(
-                words[end_index - 1 : end_index]
-            )
-        return working
+            result = transformation(match.var_words)
+
+        return match.prefix + result + match.suffix
 
     return Rule(
         match=match,
@@ -111,7 +132,7 @@ def format_rules(rules):
         yield '%s => %s' % (' '.join(match), target)
 
 
-def iter_rules(name, includes=False):
+def iter_rules(name, includes=True):
     """Given rule-file name, iteratively produce all rules
     
     include -- if True, then produce rules from all included
@@ -134,7 +155,7 @@ def iter_rules(name, includes=False):
                         err.args += ('included from %s#%i' % (name, i + 1),)
                         raise
                 else:
-                    log.info("Ignoring include: %s", line)
+                    log.info("Includes disabeld, ignoring: %s", line)
             if (not line) or line.startswith('#'):
                 continue
             try:
