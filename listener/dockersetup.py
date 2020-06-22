@@ -26,7 +26,7 @@ def cache_models(
     """
     for template in [
         defaults.MODEL_FILE,
-        defaults.SCORER_FILE,
+        # defaults.SCORER_FILE,
     ]:
         filename = template % locals()
         local = os.path.join(cache_dir, filename)
