@@ -44,7 +44,9 @@ def write_queue(queue, outputs):
     while True:
         record = queue.get()
         if hasattr(record, 'json'):
-            encoded = record.json().encode('utf-8')
+            for transcript in record.transcripts:
+                transcript.rule_matches = []
+            encoded = record.json(exclude={'rule_matches'}).encode('utf-8')
         else:
             encoded = json.dumps(record).encode('utf-8')
         for output in outputs:
