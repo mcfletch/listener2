@@ -310,13 +310,13 @@ def get_options():
         % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
         help='DeepSpeech published model',
     )
-    parser.add_argument(
-        '-s',
-        '--scorer',
-        default='/src/model/deepspeech-%s-models.scorer'
-        % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
-        help='DeepSpeech published scorer, use "" to not apply the Language Model within the daemon (letting the interpreter handle the scoring)',
-    )
+    # parser.add_argument(
+    #     '-s',
+    #     '--scorer',
+    #     default='/src/model/deepspeech-%s-models.scorer'
+    #     % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
+    #     help='DeepSpeech published scorer, use "" to not apply the Language Model within the daemon (letting the interpreter handle the scoring)',
+    # )
     parser.add_argument(
         '--beam-width',
         default=None,
@@ -350,11 +350,11 @@ def process_input_file(conn, options, out_queue, background=True):
     desired_sample_rate = model.sampleRate()
     if desired_sample_rate != defaults.SAMPLE_RATE:
         log.error("Model expects rate of %s", desired_sample_rate)
-    if options.scorer:
-        model.enableExternalScorer(options.scorer)
-    else:
-        log.info("Disabling the scorer")
-        model.disableExternalScorer()
+    # if options.scorer:
+    #     model.enableExternalScorer(options.scorer)
+    # else:
+    log.info("Disabling the built-in scorer")
+    model.disableExternalScorer()
     if background:
         t = threading.Thread(target=run_recognition, args=(model, conn, out_queue))
         t.setDaemon(background)
