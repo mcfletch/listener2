@@ -1,8 +1,9 @@
 # General dictation rules
 
+#include user
 #include punctuation
+#include numbers
 #include case
 #include navigation
 #include commands
-
  

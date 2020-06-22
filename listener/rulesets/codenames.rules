@@ -1,11 +1,60 @@
+# Commonly mis-heard code names...
+colin new line => 'colon','new','line'
+colan new line => 'colon','new','line'
+harow => 'arrow'
+hero => 'arrow'
+herro => 'arrow'
+jason => 'json'
+name jason => "jason"
+h t m l => 'html'
+h te m l => 'html'
+h t hm l => 'html'
+cutie => 'Qt'
+
+dunder in it => 'dunder','init'
+thunder in it => 'dunder','init'
+thunder main => 'dunder','main'
+
+not equal => '!='
+double equal => '=='
+double equals => '=='
+asterisk asterisk  => '**'^
+star star => ^'**'^
+arrow symbol => '=>'
+divided by => "/"
+times equal  => "*="
+times => "*"
+or equal =>  "|="
+bar symbol => ^"|"^
+
+dunder ${word} => dunder()
+
 # Case manipulation
-c-name ${phrase} => camel_lower()
-j-s-name ${phrase} => camel_lower()
+see name => 'c','name'
+jay ess => 'js'
 
-py-name ${phrase} => underscore_name()
-underscore-name ${phrase} => underscore_name()
-under-name ${phrase} => underscore_name()
+c name ${phrase} => camel_lower()
+js name ${phrase} => camel_lower()
+pi deaf => 'pi','def'
+pi death => 'pi','def'
+pideath => 'pi','def'
 
-percent-format ${name} => percent_format()
+pi name => 'undername'
+pi comment => '#'
+underscore name => 'undername'
+undername ${phrase} => underscore_name()
+
+percent format ${name} => percent_format()
 
 constant ${phrase} => constant()
+
+pi equal => '=='
+pi main line => "if __name__ == '__main__':\n"
+pi class => 'class','cap','camel'
+pi def => 'def ','under','name'
+
+arrow => '=>'
+
+run together ${phrase} =>  run_together ()
+
+doc string  => ^'"""'^

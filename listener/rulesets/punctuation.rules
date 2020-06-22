@@ -1,6 +1,43 @@
+# Common mis-hearings, applied before main processing
+# We really should be using something like leveshtine edit distance
+# rather than trying to produce all of the possible misspellings
+# 
+perin => 'paren'
+parin => 'paren'
+knew line => 'new','line'
+knew paragraph => 'new', 'paragraph'
+parentheses => 'paren'
+parenthesis => 'paren'
+prinn => 'paren'
+prind => 'paren'
+open brin => 'open','paren'
+close brin => 'close','paren'
+
+open paren => 'open','paren'
+hoping paren => 'open','paren'
+opened paren => 'open','paren'
+opened prien => 'open','paren'
+
+closed paren => 'close','paren'
+close paren => 'close','paren'
+under score => 'underscore'
+
+closed quote => 'close','quote'
+
+astrosk => 'asterisk'
+askedrisk => 'asterisk'
+askedrusk => 'asterisk'
+hopinquote => 'open','quote'
+
+per cent => 'percent'
+back slash => 'backslash'
+colden => 'colon'
+coldan => 'colon'
+comer => 'comma'
+
 # punctuation rules...
 new line => ^'\n'^
-new paragraph => ^'\n'^
+new paragraph => ^'\n\n'^
 tab key => ^'\t'^
 full stop => ^'.'
 period => ^'.'
@@ -8,11 +45,7 @@ dot => ^'.'^
 point => ^'.'^
 question mark => ^'?'
 exclamation mark => ^'!'
-open parentheses => '('^
-open parenthesis => '('^
 open paren => '('^
-close parentheses => ^')'
-close parenthesis => ^')'
 close paren => ^')'
 underscore => ^'_'^
 open bracket => ^'['^
@@ -27,18 +60,22 @@ close triple quote => ^'"""'
 triple start quote => '"""'^
 triple end quote => ^'"""'
 ampersand character => "&"
+ampersand symbol => "&"
 and character => '&'
 and symbol => '&'
-or symbol => '|'
 or character => '|'
+or symbol => '|'
 pipe character => "|"
+pipe symbol => "|"
 backslash => ^'\\'^
-back slash => ^'\\'^
 slash => ^'/'^
 slash slash => ^'//'^
 space => ^' '^
 bang => ^'!'
+shebang => ^'!#'
+sharp character => ^'#'
 sharp symbol => ^'#'
+hash character => ^'#'
 hash symbol => ^'#'
 at symbol => ^'@'^
 no space => ^''^
@@ -67,3 +104,4 @@ open brace => ^'{'^
 close brace => ^'}'^
 tilde => '~'^
 apostrophe => ^"'"^
+
