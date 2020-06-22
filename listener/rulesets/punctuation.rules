@@ -13,16 +13,17 @@ prind => 'paren'
 open brin => 'open','paren'
 close brin => 'close','paren'
 
-open paren => 'open','paren'
 hoping paren => 'open','paren'
 opened paren => 'open','paren'
 opened prien => 'open','paren'
 
 closed paren => 'close','paren'
 close paren => 'close','paren'
+clothes paren => 'close','paren'
 under score => 'underscore'
 
 closed quote => 'close','quote'
+clothes quote => 'close','quote'
 hopinquote => 'open','quote'
 
 astrosk => 'asterisk'
