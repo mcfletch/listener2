@@ -15,6 +15,9 @@ dunder in it => 'dunder','init'
 thunder in it => 'dunder','init'
 thunder main => 'dunder','main'
 
+get diff => 'git','diff'
+get push => 'git','push'
+
 not equal => '!='
 double equal => '=='
 double equals => '=='
@@ -50,11 +53,11 @@ constant ${phrase} => constant()
 
 pi equal => '=='
 pi main line => "if __name__ == '__main__':\n"
-pi class => 'class','cap','camel'
-pi def => 'def ','under','name'
+pi class => ^'class','cap','camel'
+pi def => ^'def ','undername'
 
 arrow => '=>'
 
-run together ${phrase} =>  run_together ()
+run together ${phrase} =>  run_together()
 
 doc string  => ^'"""'^

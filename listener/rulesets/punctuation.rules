@@ -23,11 +23,22 @@ close paren => 'close','paren'
 under score => 'underscore'
 
 closed quote => 'close','quote'
+hopinquote => 'open','quote'
 
 astrosk => 'asterisk'
 askedrisk => 'asterisk'
 askedrusk => 'asterisk'
-hopinquote => 'open','quote'
+
+a pastrove => 'apostrophe'
+a postrophi => 'apostrophe'
+a postrophe => 'apostrophe'
+apastrove => 'apostrophe'
+a postrophiaas => 'apostrophe','s'
+apostrophe as => 'apostrophe','s'
+a postropheas => 'apostrophe','s'
+apostrophidas => 'apostrophe','s'
+apostrophe s => ^"'s"
+
 
 per cent => 'percent'
 back slash => 'backslash'

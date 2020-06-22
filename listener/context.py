@@ -7,8 +7,15 @@ log = logging.getLogger(__name__)
 
 
 class Context(models.Context):
+    """And interpretation context for our interpreter
+    
+    Binds together the various bits which define how
+    the interpreter will weight given interpretations of 
+    the  user's utterances.
+    """
+
     @classmethod
-    def by_name(cls, name):
+    def by_name(cls, name: str):
         """Load the context by name from disk"""
         return cls(name=name, config=models.ContextDefinition.by_name(name),)
 
@@ -19,6 +26,7 @@ class Context(models.Context):
 
     @models.justonce_property
     def loaded_rules(self):
+        """ Load the rules from disk and compile them into a matching table"""
         return ruleloader.load_rules(self.config.rules)
 
     @property
@@ -33,6 +41,7 @@ class Context(models.Context):
 
     @models.justonce_property
     def scorers(self):
+        """ Create our scoring models based on our definition"""
         return [
             self.SCORER_CLASSES[scorer.type](definition=scorer, context=self,)
             for scorer in self.config.scorers
