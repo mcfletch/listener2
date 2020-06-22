@@ -9,7 +9,7 @@ caps ${word} => title()
 capital ${word} => title()
 constant ${phrase} => constant()
 camel case ${phrase} => camel()
-camelcaps ${phrase} => camel()
+camel caps ${phrase} => camel()
 cap camel ${phrase} => camel()
 caps camel ${phrase} => camel()
 
