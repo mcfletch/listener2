@@ -10,5 +10,7 @@ capital ${word} => title()
 constant ${phrase} => constant()
 camel case ${phrase} => camel()
 camelcaps ${phrase} => camel()
+cap camel ${phrase} => camel()
+caps camel ${phrase} => camel()
 
 all together ${phrase} => no_spaces()
