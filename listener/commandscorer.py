@@ -1,34 +1,33 @@
 import pydantic
+import logging
 from . import models
 
+log = logging.getLogger(__name__)
 
-class KenLMScorer(pydantic.BaseModel):
-    """Score based on a KenLM model as in upsteam DeepSpeech"""
 
+class CommandScorer(pydantic.BaseModel):
+    """Score incoming commands based on command/vocabulary-matching
+    
+    Given a set of N target things that might be
+    in the middle of an utterance, update score based
+    on the edit-distance factor to having targets
+    recognised
+    """
+
+    command_bias: float = 5.0  # log probability, so 1 => 10x more likely to match...
     definition: models.ScorerDefinition = None
-
-    _scorer = None
+    context: models.Context = None
 
     @property
     def name(self):
         return self.definition.name
 
-    @models.justonce_property
-    def scorer(self):
-        """Load our scorer model (a KenLM model by default)"""
-        # NOTE: we do *not* import this at the top level of
-        # the module so that the plugin can be loaded without
-        # loading up the dependency
-        import kenlm
-
-        model = kenlm.Model(self.definition.language_model)
-        return model
-
     def score(self, utterance: models.Utterance):
-        """Score the utterance"""
-        scorer = self.scorer
-        scores = []
+        """Score the utterance (adds to base confidence if matches a command)"""
+        log.info("Applying command score with %s rules", len(self.context.rules))
         for transcript in utterance.transcripts:
-            score = scorer.score(transcript.text)
-            scores.append((score, transcript))
-        return sorted(scores, key=lambda x: x[0], reverse=True)
+            match = models.match_rules(transcript.words, self.context.rules)
+            if match:
+                transcript.confidence += self.command_bias
+                log.info("Adding to score of %s", transcript.words)
+        return utterance
