@@ -39,8 +39,8 @@ def underscore_name(words):
 
 
 @named_rule
-def percent_format(name):
-    return ['%(', '^', name, '^', ')s']
+def percent_format(names):
+    return [('%(', '^', name, '^', ')s') for name in names]
 
 
 @named_rule
@@ -51,8 +51,14 @@ def no_spaces(words):
         result.append('^')
     return result
 
+
 @named_rule
 def dunder(words):
     """Create a python dunder name"""
     return ['__'] + underscore_name(words) + ['__']
-    
+
+
+@named_rule
+def run_together(words):
+    """Produce a single word from the words joined together"""
+    return [''.join(words)]
