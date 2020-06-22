@@ -5,7 +5,6 @@ from listener import (
     context,
     models,
     defaults,
-    fuzzymatching,
 )
 
 
@@ -64,11 +63,6 @@ class TestInterpreter(unittest.TestCase):
         result = core.apply_rules(JUNK_UTTERANCE.copy())
         assert result.transcripts
         assert result.transcripts[0].text == '', 'Did not recognise a junk utterance'
-
-    def test_distance_calculation(self):
-        rule = models.Rule(match=['cap-camel', defaults.PHRASE_MARKER])
-        distances = fuzzymatching.measure_distance(['caps', 'camel'], rule)
-        assert distances[0] == (1, ['caps', 'camel'], ['cap-camel']), distances[0]
 
 
 JUNK_UTTERANCE = utt = models.Utterance(
