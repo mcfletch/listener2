@@ -41,22 +41,24 @@ def main():
             os.makedirs(directory, 0o700)
         os.mkfifo(target)
     verbose = [] if not options.verbose else ['-v']
-    command = [
-        'parec',
-    ]+ verbose + [
-        '--rate',
-        str(defaults.SAMPLE_RATE),
-        '--format',
-        's16le',
-        '--channels',
-        '1',
-        '--raw',
-        '--record',
-        '--client-name',
-        '%s-microphone' % (defaults.APP_NAME,),
-        '--stream-name',
-        'recogniser',
-        target,
-    ]
+    command = (
+        ['parec',]
+        + verbose
+        + [
+            '--rate',
+            str(defaults.SAMPLE_RATE),
+            '--format',
+            's16le',
+            '--channels',
+            '1',
+            '--raw',
+            '--record',
+            '--client-name',
+            '%s-microphone' % (defaults.APP_NAME,),
+            '--stream-name',
+            'recogniser',
+            target,
+        ]
+    )
     log.info("Command: %s", " ".join(command))
     os.execvp(command[0], command)

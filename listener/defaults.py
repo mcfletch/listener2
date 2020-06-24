@@ -55,4 +55,3 @@ def setup_logging(options):
         level=logging.DEBUG if options.verbose else logging.WARNING,
         format='%(asctime)s:%(levelname)s:%(name)s:%(lineno)s %(message)s',
     )
-

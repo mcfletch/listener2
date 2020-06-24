@@ -13,16 +13,15 @@ is to pipe the import from alsa through ffmpeg into the named pipe.
 clients may onto the events unix socket in the same directory
 to receive the partial and final event json records.
 """
-from deepspeech import Model, version
-from listener import eventserver
-import logging, os, sys, select, json, socket, queue, collections, time
+import logging, os, socket, collections, time, threading
 import numpy as np
+from deepspeech import Model
 import webrtcvad
+from . import eventserver
 from . import defaults
 
-import threading
 
-log = logging.getLogger(__name__ if __name__ != '__main__' else 'listener')
+log = logging.getLogger(__name__) # pylint: disable=invalid-name
 
 # How long of leading silence causes it to be discarded?
 FRAME_SIZE = (defaults.SAMPLE_RATE // 1000) * 20  # rate of 16000, so 16samples/ms
@@ -91,13 +90,13 @@ class RingBuffer(object):
         self.write_head = 0
         self.start = 0
 
-    def read_in(self, fh, blocksize=1024):
+    def read_in(self, file_handle, blocksize=1024):
         """Read in content from the buffer"""
         target = self.buffer[self.write_head : self.write_head + blocksize]
-        if hasattr(fh, 'readinto'):
+        if hasattr(file_handle, 'readinto'):
             # On the blocking fifo this consistently reads
             # the whole blocksize chunk of data...
-            written = fh.readinto(target)
+            written = file_handle.readinto(target)
             if written != blocksize * 2:
                 log.debug(
                     "Didn't read the whole buffer (likely disconnect): %s/%s",
@@ -113,7 +112,7 @@ class RingBuffer(object):
             written = 0
             reads = 0
             while written < blocksize:
-                written += fh.recv_into(tview[written:], blocksize - written)
+                written += file_handle.recv_into(tview[written:], blocksize - written)
                 reads += 1
             if reads > 1:
                 log.debug("Took %s reads to get %s bytes", reads, written)
@@ -290,6 +289,7 @@ def create_input_socket(port):
 
 
 def get_options():
+    """Construct the argument parser for the command line"""
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -308,13 +308,6 @@ def get_options():
         % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
         help='DeepSpeech published model',
     )
-    # parser.add_argument(
-    #     '-s',
-    #     '--scorer',
-    #     default='/src/model/deepspeech-%s-models.scorer'
-    #     % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
-    #     help='DeepSpeech published scorer, use "" to not apply the Language Model within the daemon (letting the interpreter handle the scoring)',
-    # )
     parser.add_argument(
         '--beam-width',
         default=None,
@@ -325,7 +318,7 @@ def get_options():
         '--port',
         default=None,
         type=int,
-        help='If specified, use a TCP/IP socket, unfortunately we cannot use unix domain sockets due to broken ffmpeg buffering',
+        help='If specified, use a TCP/IP socket (note: tcp behaviour is... bad)',
     )
     parser.add_argument(
         '-v',
@@ -338,6 +331,7 @@ def get_options():
 
 
 def process_input_file(conn, options, out_queue, background=True):
+    """Given socket/pipe process audio input and push to out_queue"""
     # TODO: allow socket connections from *clients* to choose
     # the model rather than setting it in the daemon...
     # to be clear, *output* clients, not audio sinks
@@ -354,14 +348,15 @@ def process_input_file(conn, options, out_queue, background=True):
     log.info("Disabling the built-in scorer")
     model.disableExternalScorer()
     if background:
-        t = threading.Thread(target=run_recognition, args=(model, conn, out_queue))
-        t.setDaemon(background)
-        t.start()
+        thread = threading.Thread(target=run_recognition, args=(model, conn, out_queue))
+        thread.setDaemon(background)
+        thread.start()
     else:
         run_recognition(model, conn, out_queue)
 
 
 def main():
+    """Main deepspeech daemon process"""
     options = get_options().parse_args()
     defaults.setup_logging(options)
     log.info("Send Raw, Mono, 16KHz, s16le, audio to %s", options.input)
@@ -372,7 +367,7 @@ def main():
         sock = create_input_socket(options.port)
         while True:
             log.info("Waiting on %s", sock)
-            conn, addr = sock.accept()
+            conn, _ = sock.accept()
             process_input_file(conn, options, out_queue, background=True)
     else:
         # log.info("Opening fifo (will pause until a source connects)")
@@ -381,7 +376,7 @@ def main():
                 sock = open_fifo(options.input)
                 log.info("FIFO connected, processing")
                 process_input_file(sock, options, out_queue, background=False)
-            except (webrtcvad._webrtcvad.Error, IOError) as err:
+            except (webrtcvad._webrtcvad.Error, IOError) as err: # pylint: disable=protected-access
                 log.info("Disconnect, re-opening fifo")
                 time.sleep(2.0)
 

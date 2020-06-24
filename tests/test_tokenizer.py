@@ -224,4 +224,3 @@ class TokenizerTests(TestCase):
         for sample in samples:
             categories = list(self.tokenizer.runs_of_categories(sample))
             # assert False, categories
-

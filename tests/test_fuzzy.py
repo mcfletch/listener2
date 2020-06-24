@@ -50,4 +50,3 @@ class TestInterpreter(unittest.TestCase):
     #     rule = models.Rule(match=['cap-camel', defaults.PHRASE_MARKER])
     #     distances = fuzzymatching.measure_distance(['caps', 'camel'], rule)
     #     assert distances[0] == (1, ['caps', 'camel'], ['cap-camel']), distances[0]
-
