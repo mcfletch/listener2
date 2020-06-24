@@ -59,12 +59,11 @@ def get_options():
 
 
 def main():
+    from . import eventreceiver, eventserver
+
     options = get_options().parse_args()
     defaults.setup_logging(options)
-    from . import eventreceiver, eventserver
-    import json
-
-    # Start in the wikipedia context...
+    # Start in the originally specified context
     context = Context.by_name(options.context)
     if not options.scorer:
         queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)

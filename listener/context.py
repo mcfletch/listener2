@@ -1,7 +1,7 @@
 import re, logging, os, json
 import pydantic
 from . import defaults, ruleloader, models
-from . import models, kenlmscorer, commandscorer
+from . import kenlmscorer, commandscorer
 
 log = logging.getLogger(__name__)
 

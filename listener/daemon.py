@@ -271,9 +271,6 @@ def get_options():
 
 def process_input_file(conn, options, out_queue, background=True):
     """Given socket/pipe process audio input and push to out_queue"""
-    # TODO: allow socket connections from *clients* to choose
-    # the model rather than setting it in the daemon...
-    # to be clear, *output* clients, not audio sinks
     log.info("Starting recognition on %s", conn)
     model = Model(options.model,)
     if options.beam_width:
