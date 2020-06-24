@@ -40,9 +40,10 @@ def main():
         if not os.path.exists(directory):
             os.makedirs(directory, 0o700)
         os.mkfifo(target)
+    verbose = [] if not options.verbose else ['-v']
     command = [
         'parec',
-        # '-v',
+    ]+ verbose + [
         '--rate',
         str(defaults.SAMPLE_RATE),
         '--format',
