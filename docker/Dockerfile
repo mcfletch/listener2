@@ -1,14 +1,16 @@
 # Client/Testing dockerfile for DeepSpeech
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install --no-install-recommends -y \
     python3 \
     python3-pip \
     python3-numpy \
     libsox-dev \
     bash-completion \
     unzip \
-    sox
+    sox \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /src/working
 RUN mkdir -p /src/models
