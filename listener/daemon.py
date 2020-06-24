@@ -140,7 +140,7 @@ class RingBuffer(object):
 
 
 def produce_voice_runs(
-    input,
+    connection,
     read_frames=2,
     rate=defaults.SAMPLE_RATE,
     silence=SILENCE_FRAMES,
@@ -215,16 +215,16 @@ def produce_voice_runs(
 
 def run_recognition(
     model,
-    input,
+    connection,
     out_queue,
     read_size=320,
     rate=defaults.SAMPLE_RATE,
     max_decode_rate=4,
 ):
-    """Read fragments from input, write results to output
+    """Read fragments from connection, write results to output
     
     model -- DeepSpeech model to run 
-    input -- input binary audio stream 16KHz mono 16-bit unsigned machine order audio
+    connection -- input binary audio stream 16KHz mono 16-bit unsigned machine order audio
     output -- output (text) stream to which to write updates
     rate -- audio rate (16,000 to be compatible with DeepSpeech)
     max_decode_rate -- maximum number of times/s to do partial recognition
@@ -239,15 +239,15 @@ def run_recognition(
     last word was the start of the utterance
     """
     # create our ring-buffer structure with 60s of audio
-    for metadata in iter_metadata(model, input=input, rate=rate):
+    for metadata in iter_metadata(model, connection=connection, rate=rate):
         out_queue.put(metadata)
 
 
-def iter_metadata(model, input, rate=defaults.SAMPLE_RATE, max_decode_rate=4):
-    """Iterate over input producing transcriptions with model"""
+def iter_metadata(model, connection, rate=defaults.SAMPLE_RATE, max_decode_rate=4):
+    """Iterate over connection producing transcriptions with model"""
     stream = model.createStream()
     length = last_decode = 0
-    for buffer in produce_voice_runs(input, rate=rate,):
+    for buffer in produce_voice_runs(connection, rate=rate,):
         if buffer is None:
             if length:
                 metadata = metadata_to_json(
@@ -281,8 +281,6 @@ def open_fifo(filename, mode='rb'):
 
 def create_input_socket(port):
     """Connect to the given socket as a read-only client"""
-    import socket
-
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setblocking(True)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 640 * 100)
