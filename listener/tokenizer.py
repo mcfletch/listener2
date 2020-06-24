@@ -385,7 +385,7 @@ class Tokenizer(object):
                 return remaining + [suffix]
             possibles.append(remaining + [suffix])
         if len(name) < 3:
-            return [c for c in name]
+            return list(name)
         return [name]
 
     def parse_run_together_with_markup(self, name):

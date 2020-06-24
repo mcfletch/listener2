@@ -14,14 +14,13 @@ clients may onto the events unix socket in the same directory
 to receive the partial and final event json records.
 """
 import logging, os, socket, collections, time, threading
-import numpy as np
 from deepspeech import Model
 import webrtcvad
 from . import eventserver
 from . import defaults
+from .ringbuffer import RingBuffer
 
-
-log = logging.getLogger(__name__) # pylint: disable=invalid-name
+log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 # How long of leading silence causes it to be discarded?
 FRAME_SIZE = (defaults.SAMPLE_RATE // 1000) * 20  # rate of 16000, so 16samples/ms
@@ -79,65 +78,6 @@ def transcript_to_json(transcript, partial=False):
     return struct
 
 
-class RingBuffer(object):
-    """Crude numpy-backed ringbuffer"""
-
-    def __init__(self, duration=30, rate=defaults.SAMPLE_RATE):
-        self.duration = duration
-        self.rate = rate
-        self.size = duration * rate
-        self.buffer = np.zeros((self.size,), dtype=np.int16)
-        self.write_head = 0
-        self.start = 0
-
-    def read_in(self, file_handle, blocksize=1024):
-        """Read in content from the buffer"""
-        target = self.buffer[self.write_head : self.write_head + blocksize]
-        if hasattr(file_handle, 'readinto'):
-            # On the blocking fifo this consistently reads
-            # the whole blocksize chunk of data...
-            written = file_handle.readinto(target)
-            if written != blocksize * 2:
-                log.debug(
-                    "Didn't read the whole buffer (likely disconnect): %s/%s",
-                    written,
-                    blocksize // 2,
-                )
-                target = target[: (written // 2)]
-        else:
-            # This is junk, unix and localhost buffering in ffmpeg
-            # means we take 6+ reads to get a buffer and we wind up
-            # losing a *lot* of audio due to delays
-            tview = target.view(np.uint8)
-            written = 0
-            reads = 0
-            while written < blocksize:
-                written += file_handle.recv_into(tview[written:], blocksize - written)
-                reads += 1
-            if reads > 1:
-                log.debug("Took %s reads to get %s bytes", reads, written)
-        self.write_head = (self.write_head + written) % self.size
-        return target
-
-    def itercurrent(self):
-        """Iterate over all samples in the current record
-        
-        After we truncate from the beginning we have to
-        reset the stream with the content written already
-        """
-        if self.write_head < self.start:
-            yield self.buffer[self.start :]
-            yield self.buffer[: self.write_head]
-        else:
-            yield self.buffer[self.start : self.write_head]
-
-    def __len__(self):
-        if self.write_head < self.start:
-            return self.size - self.start + self.write_head
-        else:
-            return self.write_head - self.start
-
-
 def produce_voice_runs(
     connection,
     read_frames=2,
@@ -169,7 +109,6 @@ def produce_voice_runs(
     """
     vad = webrtcvad.Vad(voice_detect_aggression)
     ring = RingBuffer(rate=rate)
-    current_utterance = []
 
     silence_count = 0
     read_size = read_frames * FRAME_SIZE
@@ -178,14 +117,14 @@ def produce_voice_runs(
     # word of an utterance, here (in 20ms frames)
     silence_frames = collections.deque([], 10)
     while True:
-        buffer = ring.read_in(input, read_size)
-        if not len(buffer):
+        new_buffer = ring.read_in(connection, read_size)
+        if not len(new_buffer):
             log.debug("Input disconnected")
             yield None
             silence_count = 0
             raise IOError('Input disconnect')
-        for start in range(0, len(buffer) - 1, FRAME_SIZE):
-            frame = buffer[start : start + FRAME_SIZE]
+        for start in range(0, len(new_buffer) - 1, FRAME_SIZE):
+            frame = new_buffer[start : start + FRAME_SIZE]
             if vad.is_speech(frame, rate):
                 if silence_count:
                     # Update the ring-buffer to tell us where
@@ -246,8 +185,8 @@ def iter_metadata(model, connection, rate=defaults.SAMPLE_RATE, max_decode_rate=
     """Iterate over connection producing transcriptions with model"""
     stream = model.createStream()
     length = last_decode = 0
-    for buffer in produce_voice_runs(connection, rate=rate,):
-        if buffer is None:
+    for new_buffer in produce_voice_runs(connection, rate=rate,):
+        if new_buffer is None:
             if length:
                 metadata = metadata_to_json(
                     stream.finishStreamWithMetadata(15), partial=False
@@ -258,8 +197,8 @@ def iter_metadata(model, connection, rate=defaults.SAMPLE_RATE, max_decode_rate=
                 stream = model.createStream()
                 length = last_decode = 0
         else:
-            stream.feedAudioContent(buffer)
-            written = len(buffer)
+            stream.feedAudioContent(new_buffer)
+            written = len(new_buffer)
             length += written
             if (length - last_decode) > rate // max_decode_rate:
                 metadata = metadata_to_json(
@@ -290,7 +229,7 @@ def create_input_socket(port):
 
 def get_options():
     """Construct the argument parser for the command line"""
-    import argparse
+    import argparse  # pylint: disable=import-outside-toplevel
 
     parser = argparse.ArgumentParser(
         description='Provides an audio sink to which to write buffers to feed into DeepSpeech',
@@ -376,7 +315,10 @@ def main():
                 sock = open_fifo(options.input)
                 log.info("FIFO connected, processing")
                 process_input_file(sock, options, out_queue, background=False)
-            except (webrtcvad._webrtcvad.Error, IOError) as err: # pylint: disable=protected-access
+            except (
+                webrtcvad._webrtcvad.Error,
+                IOError,
+            ):  # pylint: disable=protected-access
                 log.info("Disconnect, re-opening fifo")
                 time.sleep(2.0)
 

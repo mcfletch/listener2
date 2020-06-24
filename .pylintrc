@@ -3,4 +3,5 @@
 disable=trailing-whitespace,
         bad-continuation,
         multiple-imports,
-        len-as-condition
+        len-as-condition,
+        useless-object-inheritance
