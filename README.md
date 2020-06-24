@@ -67,8 +67,10 @@ pip install -r requirements.txt
 listener-docker
 # Feed raw audio into the recognition daemon
 listener-audio &
+# Use the default contexts (Note: need to make these available)
+listener-default-contexts
 # Interpret the raw recognition events as commands and text
-listener-interpreter &
+listener-interpreter --context english-python -v &
 # Send the commands and text to the Linux Desktop via IBus
 listener-ibus &
 ```

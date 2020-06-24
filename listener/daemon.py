@@ -283,6 +283,7 @@ def process_input_file(conn, options, out_queue, background=True):
     # else:
     log.info("Disabling the built-in scorer")
     model.disableExternalScorer()
+    out_queue.put({'partial': False, 'final': False, 'message': ['Connected']})
     if background:
         thread = threading.Thread(target=run_recognition, args=(model, conn, out_queue))
         thread.setDaemon(background)

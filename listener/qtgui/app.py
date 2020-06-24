@@ -1,8 +1,8 @@
 #! /usr/bin/env python3
 """Qt GUI Application for controlling Listener"""
-from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
-from . import systrayicon
 import sys, os, logging, subprocess, threading, time
+from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
+from . import systrayicon, mainview
 
 HERE = os.path.dirname(os.path.abspath((__file__)))
 
@@ -18,6 +18,7 @@ class ListenerApp(QtWidgets.QApplication):
         self.create_systray()
         self.create_event_listener()
         self.history = []
+        self.main_view = mainview.ListenerView()
         # self.start_pipe(self.run_audio_pipe)
         # self.start_pipe(self.run_ibus_engine)
 
@@ -49,6 +50,7 @@ class ListenerApp(QtWidgets.QApplication):
     def create_systray(self):
         self.systray = systrayicon.ListenerSystrayIcon()
         self.systray.set_state('stopped')
+        self.systray.activated.connect(self.on_icon_click,)
         self.systray.show()
         menu = QtWidgets.QMenu()
         action = menu.addAction(QtGui.QIcon('exit'), 'Quit Listener',)
@@ -88,6 +90,16 @@ class ListenerApp(QtWidgets.QApplication):
 
     def create_event_listener(self):
         """Read json events from event source"""
+
+    def on_icon_click(self, evt, *args):
+        """Handle the user clicking on the icon"""
+        log.info("Clicked on the icon")
+        if self.main_view.isVisible():
+            self.main_view.hide()
+        else:
+            self.main_view.show()
+
+        return True
 
 
 log = logging.getLogger(__name__)

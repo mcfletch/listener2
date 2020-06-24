@@ -94,6 +94,7 @@ class Utterance(pydantic.BaseModel):
     partial: bool = False
     final: bool = True
     transcripts: List[Transcript] = []
+    messages: Optional[List[str]] = []
 
     def sort(self):
         """Apply sorting to our transcripts

@@ -72,7 +72,7 @@ def main():
     for event in eventreceiver.read_from_socket(
         sockname=defaults.RAW_EVENTS, connect_backoff=2.0,
     ):
-        if not event.partial:
+        if event.final:
             # TODO: Need a better way to exclude silence and small speaking pops
             # The DeepSpeech language model basically has 'he' as the result for
             # lots of breath and pop sounds, but that's just an artifact of this
@@ -87,3 +87,7 @@ def main():
             event = context.apply_rules(event)
             log.info('    ==> %s', event.best_guess().words)
             queue.put(event)
+        elif event.partial:
+            pass
+        else:
+            log.info('BACKEND: %s', " ".join(event.get('messages')))
