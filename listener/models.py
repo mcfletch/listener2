@@ -330,6 +330,7 @@ def iter_matches(words, rules):
         branch = rules
         var_phrase = None
         var_words = []
+        i = 0
         for i, word in enumerate(words[start:]):
             if word in branch:
                 branch = branch[word]

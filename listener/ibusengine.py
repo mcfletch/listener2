@@ -144,8 +144,6 @@ class ListenerEngine(IBus.Engine):
 
     def create_client_socket(self, sockname):
         """open a unix socket to the given socket name"""
-        import socket
-
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.setblocking(False)
         sock.connect(sockname)
@@ -224,15 +222,15 @@ def register_engine(bus, live=False):
         author='Mike C. Fletcher',
         homepage='https://github.com/mcfletch/deepspeech-docker',
         command_line='listener-ibus -r',
-        textdomain='en',  # TODO: is this language?
+        textdomain='en',  # TODO: is this really language?
     )
     component.add_engine(ListenerEngine.DESCRIPTION)
     connection = bus.get_connection()
-    assert connection, "IBus has no connection"
+    if not connection:
+        raise RuntimeError("IBus has no connection")
     factory = IBus.Factory.new(connection)
-    factory.add_engine(
-        SERVICE_NAME, GObject.type_from_name(NAME)
-    ), "Unable to add the engine"
+    if not factory.add_engine(SERVICE_NAME, GObject.type_from_name(NAME)):
+        raise RuntimeError("Unable to add the engine")
     if not live:
         assert bus.register_component(component), "Unable to register our component"
 
