@@ -89,14 +89,13 @@ class UInput(object):
                 return fn
         raise RuntimeError("Did not find uinput device")
 
-    def write_bytes(self, bytes):
-        original = bytes
-        while bytes:
-            written = os.write(self.fd, bytes)
+    def write_bytes(self, content):
+        original = content
+        while content:
+            written = os.write(self.fd, content)
             if written == 0:
                 raise RuntimeError('Unable to write to input device?')
-            else:
-                bytes = bytes[written:]
+            content = content[written:]
         return original
 
     def open_fd(self, filename=None):
@@ -251,8 +250,8 @@ class UInput(object):
         else:
             raise ValueError('Unrecognized key: %s', char)
 
-    def run_input_string(self, input):
-        strokes = self.parse_input_string(input)
+    def run_input_string(self, content):
+        strokes = self.parse_input_string(content)
         for stroke in strokes:
             if stroke:
                 with self.key_pressed(stroke):
@@ -262,21 +261,21 @@ class UInput(object):
                 log.debug('Pausing')
                 time.sleep(0.1)
 
-    def parse_input_string(self, input):
+    def parse_input_string(self, content):
         """Given an input string, produce set of things to send"""
         result = []
         mapping = self.get_key_mapping()
-        while input:
-            if input.startswith('<>>'):
-                input = input[3:]
+        while content:
+            if content.startswith('<>>'):
+                content = content[3:]
                 result.append(mapping['>'])
-            elif input.startswith('<<>'):
+            elif content.startswith('<<>'):
                 result.append(mapping['<'])
-                input = input[3:]
-            elif input.startswith('<'):
-                stop = input.index('>')
-                name = input[1:stop]
-                input = input[stop + 1 :]
+                content = content[3:]
+            elif content.startswith('<'):
+                stop = content.index('>')
+                name = content[1:stop]
+                content = content[stop + 1 :]
 
                 if name == 'PAUSE':
                     result.append([])
@@ -294,10 +293,10 @@ class UInput(object):
                 # TODO: could allow strings-of-letters to be dictated
                 # in blocks (i.e. skip sync between them)
                 try:
-                    result.append(self.char_translate(input[0]))
+                    result.append(self.char_translate(content[0]))
                 except ValueError as err:
-                    log.warn('Cannot type character: %s', input[0])
-                input = input[1:]
+                    log.warn('Cannot type character: %s', content[0])
+                content = content[1:]
         log.info('Translated commands: %s', result)
         return result
 
@@ -306,11 +305,11 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     uinput = UInput()
     if sys.argv[1:]:
-        input = sys.argv[1:]
+        content = sys.argv[1:]
     else:
-        input = ['''<PAUSE><alt+tab><PAUSE>#Hello world<ENTER><PAUSE><tab>#Boo!''']
+        content = ['''<PAUSE><alt+tab><PAUSE>#Hello world<ENTER><PAUSE><tab>#Boo!''']
     try:
-        for phrase in input:
+        for phrase in content:
             uinput.run_input_string(phrase)
     finally:
         uinput.close()

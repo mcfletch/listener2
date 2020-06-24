@@ -128,11 +128,11 @@ class Tokenizer(object):
             if category == 'Px':
                 # a combiner that is a terminal but only iff the
                 # character after is a splitting character...
-                next = runs_of_categories.peek()
-                if next is runs_of_categories.STOP_ERROR:
+                peek = runs_of_categories.peek()
+                if peek is runs_of_categories.STOP_ERROR:
                     # is a real terminal...
                     category = 'P'
-                elif next[0] in self.SEPARATES_WORDS:
+                elif peek[0] in self.SEPARATES_WORDS:
                     category = 'P'
             if category in self.SEPARATES_WORDS:
                 if current_token:
@@ -354,39 +354,39 @@ class Tokenizer(object):
         if original in self.dictionary:
             return [original]
         return [name]
-        # split up the name looking for runtogether words...
-        name = name.lower()
-        if name in self.dictionary:
-            return [name]
-        # TODO: use statistics to decide which sub-words are the most
-        # *likely* to occur, rather than always searching for a longer match...
+        # # split up the name looking for runtogether words...
+        # name = name.lower()
+        # if name in self.dictionary:
+        #     return [name]
+        # # TODO: use statistics to decide which sub-words are the most
+        # # *likely* to occur, rather than always searching for a longer match...
 
-        # anything smaller than 1 is *always* in the dictionary...
-        prefixes = [name[:i] for i in range(1, len(name))]
-        mapped = self.dictionary.have_words(*prefixes)
-        possibles = []
-        for prefix in sorted(mapped, key=lambda x: len(x[0]), reverse=True):
-            suffix = name[len(prefix) :]
-            if suffix in self.dictionary:
-                return [prefix, suffix]
-            remaining = self.parse_run_together(suffix)
-            if len(prefix) > 1 and remaining != [suffix]:
-                return [prefix] + remaining
-            possibles.append([prefix] + remaining)
-        suffixes = [name[-i:] for i in range(1, len(name))]
-        mapped = self.dictionary.have_words(*suffixes)
-        possibles = []
-        for suffix in sorted(mapped, key=lambda x: len(x[0]), reverse=True):
-            prefix = name[: -len(suffix)]
-            if prefix in self.dictionary:
-                return [prefix, suffix]
-            remaining = self.parse_run_together(prefix)
-            if len(suffix) > 1 and remaining != [prefix]:
-                return remaining + [suffix]
-            possibles.append(remaining + [suffix])
-        if len(name) < 3:
-            return list(name)
-        return [name]
+        # # anything smaller than 1 is *always* in the dictionary...
+        # prefixes = [name[:i] for i in range(1, len(name))]
+        # mapped = self.dictionary.have_words(*prefixes)
+        # possibles = []
+        # for prefix in sorted(mapped, key=lambda x: len(x[0]), reverse=True):
+        #     suffix = name[len(prefix) :]
+        #     if suffix in self.dictionary:
+        #         return [prefix, suffix]
+        #     remaining = self.parse_run_together(suffix)
+        #     if len(prefix) > 1 and remaining != [suffix]:
+        #         return [prefix] + remaining
+        #     possibles.append([prefix] + remaining)
+        # suffixes = [name[-i:] for i in range(1, len(name))]
+        # mapped = self.dictionary.have_words(*suffixes)
+        # possibles = []
+        # for suffix in sorted(mapped, key=lambda x: len(x[0]), reverse=True):
+        #     prefix = name[: -len(suffix)]
+        #     if prefix in self.dictionary:
+        #         return [prefix, suffix]
+        #     remaining = self.parse_run_together(prefix)
+        #     if len(suffix) > 1 and remaining != [prefix]:
+        #         return remaining + [suffix]
+        #     possibles.append(remaining + [suffix])
+        # if len(name) < 3:
+        #     return list(name)
+        # return [name]
 
     def parse_run_together_with_markup(self, name):
         base = self.parse_run_together(name)
@@ -440,10 +440,10 @@ class Tokenizer(object):
 
     def looks_like_cap_camel(self, name, whole=True):
         if whole:
-            min = 4
+            minimum = 4
         else:
-            min = 2
-        if len(name) >= min:
+            minimum = 2
+        if len(name) >= minimum:
             for (upper, lower) in grouper(name, 2):
                 if not (
                     upper[0] == 'Lu'
