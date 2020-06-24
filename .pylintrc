@@ -1,0 +1,6 @@
+[MESSAGES CONTROL]
+
+disable=trailing-whitespace,
+        bad-continuation,
+        multiple-imports,
+        len-as-condition
