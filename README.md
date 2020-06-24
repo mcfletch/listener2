@@ -91,4 +91,4 @@ See [Installation Docs](./docs/installation.rst) for full installation instructi
 * [Suggesting Accurate Method and Class Names](https://miltos.allamanis.com/publications/2015suggesting/)
 
 [![PyPI Version](https://img.shields.io/pypi/v/listener.svg)](https://pypi.python.org/pypi/listener)
-
+[![CodeFactor](https://www.codefactor.io/repository/github/mcfletch/listener2/badge)](https://www.codefactor.io/repository/github/mcfletch/listener2)
