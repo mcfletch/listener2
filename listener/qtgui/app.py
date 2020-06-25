@@ -3,6 +3,8 @@
 import sys, os, logging, subprocess, threading, time
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import systrayicon, mainview
+import dbus
+import dbus.mainloop.glib
 
 HERE = os.path.dirname(os.path.abspath((__file__)))
 
@@ -21,6 +23,8 @@ class ListenerApp(QtWidgets.QApplication):
         self.main_view = mainview.ListenerView()
         # self.start_pipe(self.run_audio_pipe)
         # self.start_pipe(self.run_ibus_engine)
+        self.main_view.showMaximized()
+        self.get_service()
 
     def cleanup(self):
         self.wanted = False
@@ -97,9 +101,20 @@ class ListenerApp(QtWidgets.QApplication):
         if self.main_view.isVisible():
             self.main_view.hide()
         else:
-            self.main_view.show()
+            self.main_view.showMaximized()
 
         return True
+
+    def get_service(self):
+        """Get a DBus proxy to our ListenerService"""
+        self.dbus_bus = dbus.SessionBus()
+        remote_object = self.dbus_bus.get_object(
+            "com.example.SampleService", "/DBusWidget"
+        )
+        iface = dbus.Interface(remote_object, "com.example.SampleWidget")
+        import ipdb
+
+        ipdb.set_trace()
 
 
 log = logging.getLogger(__name__)
@@ -112,15 +127,16 @@ def get_options():
     parser.add_argument(
         '-v',
         '--verbose',
-        default=False,
+        default=True,
         action='store_true',
-        help='Enable verbose logging (for developmen/debugging)',
+        help='Enable verbose logging (for development/debugging)',
     )
     return parser
 
 
 def main():
     options = get_options().parse_args()
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     logging.basicConfig(
         level=logging.DEBUG if options.verbose else logging.WARNING,
         format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',

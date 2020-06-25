@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
-from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 import sys, os, logging
+from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
+from . import icons
 
 log = logging.getLogger(__name__)
 HERE = os.path.dirname(os.path.abspath((__file__)))
@@ -10,26 +11,10 @@ ICON_DIR = os.path.normpath(os.path.join(HERE, '../static'))
 class ListenerSystrayIcon(QtWidgets.QSystemTrayIcon):
     """Presents systray icon showing current recording state"""
 
-    ICONS = {
-        'panel-icon-stopped': None,
-        'panel-icon-paused': None,
-        'panel-icon-recording': None,
-        'panel-icon-error': None,
-        'microphone': None,
-    }
-
-    @classmethod
-    def load_icons(cls):
-        for key, icon in list(cls.ICONS.items()):
-            if icon is None:
-                icon = QtGui.QIcon(os.path.join(ICON_DIR, key + '.svg'))
-                cls.ICONS[key] = icon
-        return cls.ICONS
-
     def set_state(self, state='stopped'):
         """Set state icon showing overall current state"""
         icon = 'panel-icon-%s' % (state,)
-        self.setIcon(self.load_icons()[icon])
+        self.setIcon(icons.get_icon(icon))
 
     def set_partial(self, text='', confidence=1.0):
         """Show or hide a partial text preview
@@ -39,7 +24,7 @@ class ListenerSystrayIcon(QtWidgets.QSystemTrayIcon):
         out when what we really want is a tiny tooltip-like window that
         just updates contents as we go...
         """
-        self.showMessage(None, text, self.load_icons()['microphone'], 2000)
+        self.showMessage(None, text, icons.get_icon('microphone'), 2000)
 
 
 def main():
