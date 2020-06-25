@@ -35,6 +35,7 @@ distribution declares itself to be MIT licensed, but the FAQ for which
 declares to be a dual license AFL/GPL license.
 """
 from __future__ import absolute_import
+import json, logging, threading, time, errno, socket, select, os, queue
 from .hostgi import gi
 
 gi.require_version('IBus', '1.0')
@@ -44,8 +45,7 @@ import dbus
 import dbus.service
 
 IBus.init()
-from . import eventreceiver, interpreter
-import json, logging, threading, time, errno, socket, select, os
+from . import eventreceiver, interpreter, defaults, models, ibusengine
 
 log = logging.getLogger(__name__)
 
@@ -67,26 +67,52 @@ def exposed_dbus_prop(name):
     _getter.__name__ = name
     _setter.__name__ = name
     return property(
-        name=name,
+        # name=name,
         fget=_getter,
         fset=_setter,
         doc='''Set the value locally and expose as a DBus Property''',
     )
 
 
-RULE_TYPE = 'a(as,s)'
+RULE_TYPE = 'a(ass)'
 
 
 class InterpreterService(dbus.service.Object):
     """API for interpreting utterances"""
 
-    DBUS_NAME = 'com.vrplumber.listener.interpreter'
-    DBUS_PATH = '/com/vrplumber/listener/interpreter'
+    DBUS_NAME = defaults.DBUS_NAME
+    DBUS_PATH = '/Interpreter'
 
-    def __init__(self, listener, name):
+    def __init__(self, listener):
         """Create the interpreter by loading from a directory"""
         self.listener = listener
-        self.name = name
+        self.active = True
+        bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, self.DBUS_PATH)
+        self.event_queue = queue.Queue()
+        self.interpreter = interpreter.Interpreter(
+            current_context_name=self.listener.current_context_name,
+        )
+        self.interpreter_thread = threading.Thread(
+            target=self.interpreter.run, args=(self.event_queue,),
+        )
+        self.interpreter_thread.setDaemon(True)
+        self.interpreter_thread.start()
+        self.shovel_thread = threading.Thread(
+            target=self.shovel_events, args=(self.event_queue,)
+        )
+        self.shovel_thread.setDaemon(True)
+        self.shovel_thread.start()
+
+    def shovel_events(self, event_queue):
+        """Shovel events from event queue into IBus component"""
+        while self.active:
+            try:
+                event = event_queue.get(True, 5)
+            except queue.Empty:
+                pass
+            else:
+                self.listener.handle_event(event)
 
     @dbus.service.method(DBUS_NAME, in_signature='', out_signature=RULE_TYPE)
     def load_rules(self):
@@ -95,7 +121,7 @@ class InterpreterService(dbus.service.Object):
         return [(rule.match, rule.replace) for rule in self.rule_set]
 
     @dbus.service.method(DBUS_NAME, in_signature=RULE_TYPE, out_signature='')
-    def replace_rules(self):
+    def replace_rules(self, rules):
         """Replace the interpreter's rules with a new set from the rule editor"""
 
     @dbus.service.method(DBUS_NAME, in_signature='', out_signature='')
@@ -115,23 +141,64 @@ class InterpreterService(dbus.service.Object):
 class ListenerService(dbus.service.Object):
     """External api to the recognition service """
 
-    DBUS_NAME = 'com.vrplumber.listener'
-    DBUS_PATH = '/com/vrplumber/listener'
+    DBUS_NAME = defaults.DBUS_NAME
+    DBUS_PATH = '/Service'
 
     def __init__(self):
-        bus = dbus.SessionBus()
-        bus_name = dbus.service.BusName(self.DBUS_NAME, bus=bus)
+        bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
         dbus.service.Object.__init__(self, bus_name, self.DBUS_PATH)
         self.contexts = {}
-        self.props_iface = bus.get_object('org.freedesktop.DBus.Properties')
-        self.current_context_name = 'default'
-        self.set_context(self.current_context_name)
+        self.current_context_name = 'english-python'
+        self.SetContext(self.current_context_name)
+        self.interpreter = InterpreterService(self)
 
-    current_context_name = exposed_dbus_prop('current_context_name')
-    current_context = exposed_dbus_prop('current_context')
+    @dbus.service.method(
+        dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v'
+    )
+    def Get(self, interface_name, property_name):
+        """Get a property via introspection api"""
+        return self.GetAll(interface_name)[property_name]
+
+    @dbus.service.method(
+        dbus_interface=dbus.PROPERTIES_IFACE, in_signature='s', out_signature='v'
+    )
+    def GetAll(self, interface_name):
+        """Set all properties via introspection api"""
+        if interface_name == DBUS_NAME:
+            return {
+                'current_context_name': self.current_context_name,
+                'current_context': self.current_context,
+                'interpreter': self.interpreter,
+            }
+        else:
+            raise dbus.exceptions.DBusException(
+                'org.listener.UnknownInterface',
+                '%s does not implement the %s interface'
+                % (self.__class__.__name__, interface_name),
+            )
+
+    @dbus.service.method(
+        dbus_interface=dbus.PROPERTIES_IFACE, in_signature='sss', out_signature='v'
+    )
+    def Set(self, interface_name, property_name, value):
+        """Set the property via introspection api"""
+        if interface_name == DBUS_NAME:
+            if property_name == 'current_context_name':
+                self.set_context(value)
+                return value
+            raise dbus.exceptions.DBusException(
+                'org.listener.UnknownProperty',
+                'Unknown property: %s' % (property_name,),
+            )
+        else:
+            raise dbus.exceptions.DBusException(
+                'org.listener.UnknownInterface',
+                '%s does not implement the %s interface'
+                % (self.__class__.__name__, interface_name),
+            )
 
     @dbus.service.method(DBUS_NAME, in_signature='s', out_signature='o')
-    def set_context(self, name):
+    def SetContext(self, name):
         """Set the context for the DBUS for interpreting incoming events"""
         current = self.contexts.get(name)
         if name is None:
@@ -139,10 +206,17 @@ class ListenerService(dbus.service.Object):
         self.current_context = current
         return current
 
-    @dbus.service.method(DBUS_NAME, in_signature='s', out_signature='o')
-    def get_context(self):
+    @dbus.service.method(DBUS_NAME, in_signature='', out_signature='o')
+    def GetContext(self):
         """Get the  current  context for interpretation"""
         return self.current_context
+
+    @dbus.service.method(DBUS_NAME, in_signature='', out_signature='as')
+    def GetContextNames(self):
+        """Get the  current  context for interpretation"""
+        from . import models
+
+        return sorted(models.ContextDefinition.context_names())
 
     # @dbus.service.method(DBUS_NAME,)
     # def contexts(self):
@@ -154,80 +228,120 @@ class ListenerService(dbus.service.Object):
     #     from . import context
 
     #     return context.Context.keys()
-
-    @dbus.service.signal('%s.PartialResult' % (DBUS_NAME,), signature='as')
-    def partial_event(self, interpreted, text, uttid):
-        return interpreted
-
-    @dbus.service.signal('%s.FinalResult' % (DBUS_NAME,), signature='as')
-    def final_event(self, interpreted, text, uttid):
-        return interpreted
-
-
-class PipelineService(dbus.service.Object):
-    # current pipeline manipulation...
-    DBUS_NAME = 'com.vrplumber.listener.pipeline'
-    DBUS_PATH = '/com/vrplumber/listener/pipeline'
-
-    def __init__(self, pipeline):
-        self.target = pipeline
-        bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
-        dbus.service.Object.__init__(self, bus_name, self.DBUS_PATH)
-
-    @dbus.service.method(DBUS_NAME)
-    def start(self):
-        """Start up pipeline for current context"""
-        return self.target.pipeline.start_listening()
-
-    @dbus.service.method(DBUS_NAME)
-    def stop(self):
-        """Shut down pipeline for current context"""
-        return self.target.pipeline.stop_listening()
-
-    @dbus.service.method(DBUS_NAME)
-    def pause(self):
-        """Pause listening (block pipeline)"""
-        return self.target.pipeline.pause_listening()
-
-    @dbus.service.method(DBUS_NAME)
-    def reset(self):
-        """Reset/restart the pipeline"""
-        return self.target.pipeline.reset()
-
-
-class ContextService(dbus.service.Object):
-    """Service controlling a particular listener context"""
-
-    # Note: this seems to be "interface name", and apparently
-    # needs to be different for each class?
-    DBUS_NAME = 'com.vrplumber.listener.context'
-    DBUS_PATH = '/com/vrplumber/listener/context'
-
-    def __init__(self, target):
-        self.target = target
-        self.key = target.context.key
-        bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
-        dbus.service.Object.__init__(self, bus_name, self.DBUS_PATH)
+    def handle_event(self, event: models.Utterance):
+        """Dispatch the event to the appropriate targets"""
+        # if event.partial:
+        #     self.partial_event(event.json())
+        # elif event.final:
+        #     self.final_event(event.json())
+        # else:
+        #     self.status_message(event.messages)
+        ibus = self.ibus
+        if ibus:
+            ibus.on_decoding_event(event)
 
     @property
-    def context(self):
-        return self.target.context
+    def ibus(self):
+        return ibusengine.ListenerEngine.INSTANCE
 
-    @dbus.service.method(DBUS_NAME,)
-    def delete(self):
-        return self.context.delete()
+    @dbus.service.signal('%s.PartialResult' % (DBUS_NAME,), signature='v')
+    def partial_event(self, js):
+        return js
 
-    @dbus.service.method(
-        DBUS_NAME, in_signature='s',
+    @dbus.service.signal('%s.FinalResult' % (DBUS_NAME,), signature='v')
+    def final_event(self, js):
+        return js
+
+
+# class PipelineService(dbus.service.Object):
+#     # current pipeline manipulation...
+#     DBUS_NAME = 'com.vrplumber.listener.pipeline'
+#     DBUS_PATH = '/com/vrplumber/listener/pipeline'
+
+#     def __init__(self, pipeline):
+#         self.target = pipeline
+#         bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
+#         dbus.service.Object.__init__(self, bus_name, self.DBUS_PATH)
+
+#     @dbus.service.method(DBUS_NAME)
+#     def start(self):
+#         """Start up pipeline for current context"""
+#         return self.target.pipeline.start_listening()
+
+#     @dbus.service.method(DBUS_NAME)
+#     def stop(self):
+#         """Shut down pipeline for current context"""
+#         return self.target.pipeline.stop_listening()
+
+#     @dbus.service.method(DBUS_NAME)
+#     def pause(self):
+#         """Pause listening (block pipeline)"""
+#         return self.target.pipeline.pause_listening()
+
+#     @dbus.service.method(DBUS_NAME)
+#     def reset(self):
+#         """Reset/restart the pipeline"""
+#         return self.target.pipeline.reset()
+
+
+# class ContextService(dbus.service.Object):
+#     """Service controlling a particular listener context"""
+
+#     # Note: this seems to be "interface name", and apparently
+#     # needs to be different for each class?
+#     DBUS_NAME = 'com.vrplumber.listener.context'
+#     DBUS_PATH = '/com/vrplumber/listener/context'
+
+#     def __init__(self, target):
+#         self.target = target
+#         self.key = target.context.key
+#         bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
+#         dbus.service.Object.__init__(self, bus_name, self.DBUS_PATH)
+
+#     @property
+#     def context(self):
+#         return self.target.context
+
+#     @dbus.service.method(DBUS_NAME,)
+#     def delete(self):
+#         return self.context.delete()
+
+#     @dbus.service.method(
+#         DBUS_NAME, in_signature='s',
+#     )
+#     def integrate_project(self, path):
+#         """Import a project from the given path"""
+#         return self.context.integrate_project(path)
+
+
+def get_options():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='Run coordinated DBus engine for Listener'
     )
-    def integrate_project(self, path):
-        """Import a project from the given path"""
-        return self.context.integrate_project(path)
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        default=False,
+        action='store_true',
+        help='Enable verbose logging (for developmen/debugging)',
+    )
+    return parser
 
 
 def main():
+    options = get_options().parse_args()
+    defaults.setup_logging(options)
+    from dbus.mainloop.glib import DBusGMainLoop
+
+    DBusGMainLoop(set_as_default=True)
     mainloop = MAINLOOP = GLib.MainLoop()
+
     bus = BUS = IBus.Bus()
+    ibusengine.register_engine(bus)
+
+    ListenerService()
 
     def on_disconnected(bus):
         mainloop.quit()
@@ -238,3 +352,4 @@ def main():
     # but the async one seems to work, just takes a while
     log.debug("Starting mainloop")
     mainloop.run()
+

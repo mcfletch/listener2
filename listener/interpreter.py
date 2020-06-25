@@ -1,7 +1,7 @@
 """Provide for the interpretation of incoming utterances based on user provided rules
 """
 import re, logging, os, json
-from . import defaults, ruleloader, models
+from . import defaults, ruleloader, models, eventreceiver
 from .context import Context
 import pydantic
 
@@ -30,19 +30,6 @@ def get_options():
         description='Run the interpreter outside of the DBus service',
     )
     parser.add_argument(
-        '-s',
-        '--scorer',
-        default=False,
-        action='store_true',
-        help='If specified, then just do score debugging and do not produce clean events',
-    )
-    parser.add_argument(
-        '--debug-scores',
-        default=False,
-        action='store_true',
-        help='Debug sub-component scoring',
-    )
-    parser.add_argument(
         '-v',
         '--verbose',
         default=False,
@@ -58,36 +45,53 @@ def get_options():
     return parser
 
 
+class Interpreter(pydantic.BaseModel):
+    current_context_name: str = 'english-python'
+    active: bool = True
+    current_context: Context = None
+    sockname: str = defaults.RAW_EVENTS
+    connect_backoff: float = 2.0
+
+    def set_context(self, name):
+        """Reload our currently configured context"""
+        context = self.current_context = Context.by_name(self.current_context_name)
+        self.current_context_name = name
+        return context
+
+    def run(self, result_queue):
+        """Run the interpreter on an event stream"""
+        # Start in the originally specified context
+        context = self.set_context(self.current_context_name)
+        for event in eventreceiver.read_from_socket(
+            sockname=self.sockname, connect_backoff=self.connect_backoff,
+        ):
+            if event.final:
+                # TODO: Need a better way to exclude silence and small speaking pops
+                # The DeepSpeech language model basically has 'he' as the result for
+                # lots of breath and pop sounds, but that's just an artifact of this
+                # particular language model rather than the necessary result of hearing
+                # the pop
+                if event.transcripts[0].words in ([], [''], ['he']):
+                    continue
+                context.score(event)
+                best_guess = event.best_guess()
+                for t in event.transcripts:
+                    log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
+                event = context.apply_rules(event)
+                log.info('    ==> %s', event.best_guess().words)
+                result_queue.put(event)
+            elif event.partial:
+                pass
+            else:
+                log.info('BACKEND: %s', " ".join(event.get('messages')))
+
+
 def main():
     from . import eventreceiver, eventserver
 
     options = get_options().parse_args()
     defaults.setup_logging(options)
-    # Start in the originally specified context
-    context = Context.by_name(options.context)
-    if not options.scorer:
-        queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
-    else:
-        queue = None
-    for event in eventreceiver.read_from_socket(
-        sockname=defaults.RAW_EVENTS, connect_backoff=2.0,
-    ):
-        if event.final:
-            # TODO: Need a better way to exclude silence and small speaking pops
-            # The DeepSpeech language model basically has 'he' as the result for
-            # lots of breath and pop sounds, but that's just an artifact of this
-            # particular language model rather than the necessary result of hearing
-            # the pop
-            if event.transcripts[0].words in ([], [''], ['he']):
-                continue
-            context.score(event)
-            best_guess = event.best_guess()
-            for t in event.transcripts:
-                log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
-            event = context.apply_rules(event)
-            log.info('    ==> %s', event.best_guess().words)
-            queue.put(event)
-        elif event.partial:
-            pass
-        else:
-            log.info('BACKEND: %s', " ".join(event.get('messages')))
+    queue = eventserver.create_sending_threads(defaults.FINAL_EVENTS)
+    interpreter = Interpreter(current_context_name=options.context,)
+    interpreter.run(queue)
+

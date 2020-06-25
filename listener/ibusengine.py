@@ -23,7 +23,7 @@ from gi.repository import IBus
 from gi.repository import GObject, GLib, Gio
 
 IBus.init()
-from . import eventreceiver, interpreter
+from . import eventreceiver, interpreter, defaults
 import json, logging, threading, time, errno, socket, select, os
 
 log = logging.getLogger(__name__ if __name__ != '__main__' else 'ibus')
@@ -59,9 +59,10 @@ class ListenerEngine(IBus.Engine):
         '',  # icon
         'us',  # keyboard layout
     )
+    INSTANCE = None
     wanted = False
 
-    def __init__(self):
+    def __init__(self, stand_alone=False):
         """initialize the newly created engine
 
         """
@@ -73,6 +74,7 @@ class ListenerEngine(IBus.Engine):
         #     tooltip='ALSA device such as hw:0,0 or hw:1,0 (see arecord -l for ids)',
         #     visible=True,
         # ))
+        self.stand_alone = stand_alone
         self.properties.append(
             IBus.Property(
                 key='listening',
@@ -91,6 +93,7 @@ class ListenerEngine(IBus.Engine):
         # )
         # self.lookup_table.ref_sink()
         super(ListenerEngine, self).__init__()
+        ListenerEngine.INSTANCE = self
 
     processing = None
     no_space = False
@@ -102,7 +105,7 @@ class ListenerEngine(IBus.Engine):
         self.register_properties(self.properties)
         # self.hide_lookup_table()
         self.hide_preedit_text()
-        if not self.processing:
+        if self.stand_alone and not self.processing:
             self.processing = threading.Thread(
                 target=eventreceiver.read_thread,
                 kwargs=dict(sockname=DEFAULT_PIPE, callback=self.schedule_event,),
@@ -229,8 +232,7 @@ def register_engine(bus, live=False):
     if not connection:
         raise RuntimeError("IBus has no connection")
     factory = IBus.Factory.new(connection)
-    if not factory.add_engine(SERVICE_NAME, GObject.type_from_name(NAME)):
-        raise RuntimeError("Unable to add the engine")
+    factory.add_engine(SERVICE_NAME, GObject.type_from_name(NAME))
     if not live:
         assert bus.register_component(component), "Unable to register our component"
 
@@ -258,10 +260,7 @@ def register_engine(bus, live=False):
 
 def main():
     options = get_options().parse_args()
-    logging.basicConfig(
-        level=logging.DEBUG if options.verbose else logging.WARNING,
-        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
-    )
+    defaults.setup_logging(options)
     if options.raw:
         log.warning("Dictating with raw DeepSpeech output")
         global DEFAULT_PIPE

@@ -11,6 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LISTENER_SOURCE = HERE
 
 APP_NAME = 'listener'
+APP_NAME_HUMAN = 'Listener Voice Dictation'
 
 USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
 USER_CACHE_DIR = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
@@ -48,6 +49,8 @@ SAMPLE_RATE = 16000
 
 PHRASE_MARKER = '${phrase}'
 WORD_MARKER = '${word}'
+
+DBUS_NAME = 'com.vrplumber.Listener'
 
 
 def setup_logging(options):
