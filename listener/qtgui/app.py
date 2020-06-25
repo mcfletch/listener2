@@ -127,7 +127,7 @@ class ListenerApp(QtWidgets.QApplication):
         window.set_text('%s dictation overlay' % (defaults.APP_NAME_SHORT))
         saved_position = self.settings.value(window.GEOMETRY_SAVE_KEY)
         if saved_position:
-            window.restoreGeometry(saved_position.toByteArray())
+            window.restoreGeometry(saved_position)
         self.overlay = window
 
     def create_actions(self):
