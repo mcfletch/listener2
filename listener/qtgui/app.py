@@ -2,7 +2,7 @@
 """Qt GUI Application for controlling Listener"""
 import sys, os, logging, subprocess, threading, time
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
-from . import systrayicon, mainview, dictationoverlay
+from . import systrayicon, mainview, dictationoverlay, actions
 from .. import defaults, registerdbus
 import dbus
 import dbus.mainloop.glib
@@ -16,6 +16,8 @@ class ListenerApp(QtWidgets.QApplication):
     def __init__(self, argv, *args, **named):
         super(ListenerApp, self).__init__(argv)
         self.load_config()
+        self.create_actions()
+
         self.audio_hw = 'hw:1,0'
         self.check_ibus()
         self.create_systray()
@@ -52,6 +54,10 @@ class ListenerApp(QtWidgets.QApplication):
 
     def load_config(self):
         """Get the application's configuration"""
+        self.setOrganizationName("VRPlumber")
+        self.setOrganizationDomain("vrplumber.com")
+        self.setApplicationName(defaults.APP_NAME_HUMAN)
+        self.settings = QtCore.QSettings()
 
     def create_systray(self):
         self.systray = systrayicon.ListenerSystrayIcon()
@@ -118,8 +124,53 @@ class ListenerApp(QtWidgets.QApplication):
 
     def create_overlay(self):
         window = dictationoverlay.DictationOverlay()
-        window.set_text('I am the modern major general')
-        window.show()
+        window.set_text('%s dictation overlay' % (defaults.APP_NAME_SHORT))
+        saved_position = self.settings.value(window.GEOMETRY_SAVE_KEY)
+        if saved_position:
+            window.restoreGeometry(saved_position.toByteArray())
+        self.overlay = window
+
+    def create_actions(self):
+
+        self.start_listening = actions.standard_action(
+            self,
+            title='Start Listening',
+            icon='panel-icon-recording',
+            help_text='Start listening and dictating text',
+            callback=self.on_start_listening,
+            shortcut='Ctrl+L',
+        )
+        self.stop_listening = actions.standard_action(
+            self,
+            title='Stop Listening',
+            icon='panel-icon-paused',
+            help_text='Stop listening and dictating text',
+            callback=self.on_stop_listening,
+            shortcut='Ctrl+Shift+L',
+        )
+        self.reposition_overlay = actions.standard_action(
+            self,
+            title='Reposition Overlay',
+            icon='video-display',
+            help_text='Show the dictation overlay so that it can be moved/repositioned',
+            callback=self.on_reposition_overlay,
+        )
+
+    def on_start_listening(self, evt=None, **args):
+        """Tell the service to start listening"""
+        log.info("Start listening request")
+        self.main_view.status_bar.showMessage('Start Listening...')
+        self.systray.set_state('start-listening')
+
+    def on_stop_listening(self, evt=None, **args):
+        """Tell the service to start listening"""
+        log.info("Stop listening request")
+        self.main_view.status_bar.showMessage('Stop Listening...')
+        self.systray.set_state('stop-listening')
+
+    def on_reposition_overlay(self, evt=None, **args):
+        """Ask the overlay to show without closing immediately"""
+        self.overlay.show_for_reposition()
 
 
 log = logging.getLogger(__name__)
