@@ -51,6 +51,8 @@ PHRASE_MARKER = '${phrase}'
 WORD_MARKER = '${word}'
 
 DBUS_NAME = 'com.vrplumber.Listener'
+DBUS_INTERPRETER_PATH = '/Interpreter'
+DBUS_SERVICE_PATH = '/Service'
 
 
 def setup_logging(options):

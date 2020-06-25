@@ -3,6 +3,7 @@
 import sys, os, logging, subprocess, threading, time
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import systrayicon, mainview
+from .. import defaults
 import dbus
 import dbus.mainloop.glib
 
@@ -109,12 +110,9 @@ class ListenerApp(QtWidgets.QApplication):
         """Get a DBus proxy to our ListenerService"""
         self.dbus_bus = dbus.SessionBus()
         remote_object = self.dbus_bus.get_object(
-            "com.example.SampleService", "/DBusWidget"
+            defaults.DBUS_NAME, defaults.DBUS_INTERPRETER_PATH,
         )
         iface = dbus.Interface(remote_object, "com.example.SampleWidget")
-        import ipdb
-
-        ipdb.set_trace()
 
 
 log = logging.getLogger(__name__)
@@ -137,10 +135,7 @@ def get_options():
 def main():
     options = get_options().parse_args()
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    logging.basicConfig(
-        level=logging.DEBUG if options.verbose else logging.WARNING,
-        format='%(levelname) 7s %(name)s:%(lineno)s %(message)s',
-    )
+    defaults.setup_logging(options)
     app = ListenerApp([])
 
     sys.exit(app.exec_())

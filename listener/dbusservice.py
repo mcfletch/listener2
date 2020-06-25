@@ -81,7 +81,7 @@ class InterpreterService(dbus.service.Object):
     """API for interpreting utterances"""
 
     DBUS_NAME = defaults.DBUS_NAME
-    DBUS_PATH = '/Interpreter'
+    DBUS_PATH = defaults.DBUS_INTERPRETER_PATH
 
     def __init__(self, listener):
         """Create the interpreter by loading from a directory"""
@@ -142,7 +142,7 @@ class ListenerService(dbus.service.Object):
     """External api to the recognition service """
 
     DBUS_NAME = defaults.DBUS_NAME
-    DBUS_PATH = '/Service'
+    DBUS_PATH = defaults.DBUS_SERVICE_PATH
 
     def __init__(self):
         bus_name = dbus.service.BusName(self.DBUS_NAME, bus=dbus.SessionBus())
