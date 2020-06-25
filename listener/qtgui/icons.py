@@ -18,5 +18,5 @@ def get_icon(key):
     """Get our local/static icon by key/filename"""
     current = ICONS.get(key)
     if current is None:
-        icon = ICONS[key] = QtGui.QIcon(os.path.join(ICON_DIR, key + '.svg'))
-    return icon
+        current = ICONS[key] = QtGui.QIcon(os.path.join(ICON_DIR, key + '.svg'))
+    return current

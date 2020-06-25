@@ -43,6 +43,15 @@ def justonce_property(function):
     return property(fget=getter, fset=setter, fdel=deller, doc=function.__doc__,)
 
 
+class AppState(pydantic.BaseModel):
+    """Describes an overall application state"""
+
+    key: str = ''
+    icon: str = ''
+    text: str = ''
+    tooltip: str = ''
+
+
 class Rule(pydantic.BaseModel):
     """Represents a single (user defined) rule for interpreting dictation"""
 

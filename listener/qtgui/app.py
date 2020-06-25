@@ -2,8 +2,8 @@
 """Qt GUI Application for controlling Listener"""
 import sys, os, logging, subprocess, threading, time
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
-from . import systrayicon, mainview
-from .. import defaults
+from . import systrayicon, mainview, dictationoverlay
+from .. import defaults, registerdbus
 import dbus
 import dbus.mainloop.glib
 
@@ -26,6 +26,7 @@ class ListenerApp(QtWidgets.QApplication):
         # self.start_pipe(self.run_ibus_engine)
         self.main_view.showMaximized()
         self.get_service()
+        self.create_overlay()
 
     def cleanup(self):
         self.wanted = False
@@ -54,6 +55,7 @@ class ListenerApp(QtWidgets.QApplication):
 
     def create_systray(self):
         self.systray = systrayicon.ListenerSystrayIcon()
+        self.systray.setToolTip(defaults.APP_NAME_HUMAN)
         self.systray.set_state('stopped')
         self.systray.activated.connect(self.on_icon_click,)
         self.systray.show()
@@ -114,6 +116,11 @@ class ListenerApp(QtWidgets.QApplication):
         )
         iface = dbus.Interface(remote_object, "com.example.SampleWidget")
 
+    def create_overlay(self):
+        window = dictationoverlay.DictationOverlay()
+        window.set_text('I am the modern major general')
+        window.show()
+
 
 log = logging.getLogger(__name__)
 
@@ -134,6 +141,7 @@ def get_options():
 
 def main():
     options = get_options().parse_args()
+    registerdbus.register_dbus()
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     defaults.setup_logging(options)
     app = ListenerApp([])

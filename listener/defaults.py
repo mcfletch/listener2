@@ -12,6 +12,7 @@ LISTENER_SOURCE = HERE
 
 APP_NAME = 'listener'
 APP_NAME_HUMAN = 'Listener Voice Dictation'
+APP_NAME_SHORT = 'Listener'
 
 USER_RUN_DIR = os.environ.get('XDG_RUNTIME_DIR', '/run/user/%s' % (os.geteuid()))
 USER_CACHE_DIR = os.environ.get('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
