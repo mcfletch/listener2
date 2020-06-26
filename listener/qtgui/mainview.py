@@ -7,11 +7,10 @@ from PySide2.QtWidgets import (
     QMdiArea,
     QMenuBar,
     QMenu,
-    QApplication,
 )
 from PySide2.QtCore import Qt
 from .. import defaults
-from . import icons, actions, audioview
+from . import icons, actions, audioview, appref
 
 log = logging.getLogger(__name__)
 
@@ -27,10 +26,7 @@ class ListenerView(QMainWindow):
 
         self.create_audio_view()
 
-    @property
-    def app(self):
-        """Lookup the current application instance"""
-        return QApplication.instance()
+    app = property(appref.app)
 
     def window_branding(self):
         """Setup our general branding for the window"""
