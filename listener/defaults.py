@@ -55,6 +55,9 @@ DBUS_NAME = 'com.vrplumber.Listener'
 DBUS_INTERPRETER_PATH = '/Interpreter'
 DBUS_SERVICE_PATH = '/Service'
 
+PARTIAL_RESULT_EVENT = '%s.PartialResult' % (DBUS_NAME,)
+FINAL_RESULT_EVENT = '%s.FinalResult' % (DBUS_NAME,)
+
 
 def setup_logging(options):
     logging.basicConfig(

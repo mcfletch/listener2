@@ -250,7 +250,7 @@ class ListenerService(dbus.service.Object):
         return ibusengine.ListenerEngine.INSTANCE
 
     @dbus.service.signal(
-        '%s.PartialResult' % (DBUS_NAME,),
+        defaults.PARTIAL_RESULT_EVENT,
         signature=models.Utterance.dbus_struct_signature(),
     )
     def PartialResult(self, evt):
@@ -258,12 +258,12 @@ class ListenerService(dbus.service.Object):
         return evt
 
     @dbus.service.signal(
-        '%s.FinalResult' % (DBUS_NAME,),
-        signature=models.Utterance.dbus_struct_signature(),
+        defaults.FINAL_RESULT_EVENT, signature=models.Utterance.dbus_struct_signature(),
     )
     def FinalResult(self, evt):
         """Signal sent when a final transcription is received (including interpretation)"""
-        return evt
+        log.debug("Sending final event: %s", evt)
+        # return evt
 
 
 # class PipelineService(dbus.service.Object):

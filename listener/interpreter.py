@@ -81,7 +81,7 @@ class Interpreter(pydantic.BaseModel):
                 log.info('    ==> %s', event.best_guess().words)
                 result_queue.put(event)
             elif event.partial:
-                pass
+                result_queue.put(event)
             else:
                 log.info('BACKEND: %s', " ".join(event.get('messages')))
 
