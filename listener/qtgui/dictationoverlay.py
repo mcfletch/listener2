@@ -16,16 +16,19 @@ class DictationOverlay(QWidget):
         return QApplication.instance()
 
     DEFAULT_FLAGS = (
-        Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput
+        Qt.FramelessWindowHint
+        | Qt.WindowStaysOnTopHint
+        | Qt.WindowTransparentForInput
+        | Qt.Tool
     )
-    REPOSITION_FLAGS = Qt.WindowStaysOnTopHint
+    REPOSITION_FLAGS = Qt.WindowStaysOnTopHint | Qt.Tool
 
     def __init__(self, *args, **named):
         super(DictationOverlay, self).__init__(*args, **named)
         self.setWindowFlags(self.DEFAULT_FLAGS)
         # self.setAttribute(Qt.WA_TranslucentBackground, True)
         # self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setMinimumHeight(40)
+        self.setMaximumHeight(40)
         self.setMinimumWidth(400)
         self.setWindowOpacity(0.8)
         self.label = QPushButton(defaults.APP_NAME_HUMAN, self)
@@ -38,8 +41,7 @@ class DictationOverlay(QWidget):
     def show_for_reposition(self):
         """Allow the user to reposition"""
         self.setWindowFlags(Qt.WindowStaysOnTopHint)
-        self.label.setText('Drag, then click here')
-        self.show()
+        self.set_text('Drag, then click here', 0)
 
     GEOMETRY_SAVE_KEY = 'overlay.geometry'
 
@@ -51,11 +53,14 @@ class DictationOverlay(QWidget):
         self.hide()
         self.disconnect(SIGNAL('click()'), self.save_new_position)
 
-    def set_text(self, text):
+    def set_text(self, text, timeout=500):
         print("Setting text: %s", text)
-        self.show()
         self.label.setText(text)
-        self.timer.start(500)
+        self.label.adjustSize()
+        self.adjustSize()
+        self.show()
+        if timeout:
+            self.timer.start(500)
 
     def on_timer_finished(self, evt=None):
         """When the timer finishes without any interruption/reset, hide the window"""

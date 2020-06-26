@@ -128,15 +128,6 @@ class InterpreterService(dbus.service.Object):
     def load_language_models(self):
         """Get the language models for the interpreter"""
 
-    def partial_event(self, event):
-        self.listener.partial_event(event)
-
-    def final_event(self, event):
-        self.listener.final_event(event)
-
-    def handle_event(self, event):
-        """Given an event from the listener, attempt to interpret it"""
-
 
 class ListenerService(dbus.service.Object):
     """External api to the recognition service """
@@ -230,27 +221,49 @@ class ListenerService(dbus.service.Object):
     #     return context.Context.keys()
     def handle_event(self, event: models.Utterance):
         """Dispatch the event to the appropriate targets"""
-        # if event.partial:
-        #     self.partial_event(event.json())
-        # elif event.final:
-        #     self.final_event(event.json())
-        # else:
-        #     self.status_message(event.messages)
+        try:
+            self._handle_event(event)
+        except Exception as err:
+            log.error("Unable to process utterance %s: %s", err, event)
+            return
+
+    def _handle_event(self, event: models.Utterance):
+        """Handle incoming utterance by dispatching signals, text and keystrokes"""
         ibus = self.ibus
         if ibus:
             ibus.on_decoding_event(event)
+        else:
+            log.debug('No ibus is running locally')
+        # import pdb
+
+        # pdb.set_trace()
+        if event.partial:
+            if event.transcripts:
+                self.PartialResult(event.dbus_struct())
+        elif event.final:
+            if event.transcripts:
+                self.FinalResult(event.dbus_struct())
 
     @property
     def ibus(self):
+        """Gets the current ibusengine instance"""
         return ibusengine.ListenerEngine.INSTANCE
 
-    @dbus.service.signal('%s.PartialResult' % (DBUS_NAME,), signature='v')
-    def partial_event(self, js):
-        return js
+    @dbus.service.signal(
+        '%s.PartialResult' % (DBUS_NAME,),
+        signature=models.Utterance.dbus_struct_signature(),
+    )
+    def PartialResult(self, evt):
+        """Signal sent when a partial transcription is received"""
+        return evt
 
-    @dbus.service.signal('%s.FinalResult' % (DBUS_NAME,), signature='v')
-    def final_event(self, js):
-        return js
+    @dbus.service.signal(
+        '%s.FinalResult' % (DBUS_NAME,),
+        signature=models.Utterance.dbus_struct_signature(),
+    )
+    def FinalResult(self, evt):
+        """Signal sent when a final transcription is received (including interpretation)"""
+        return evt
 
 
 # class PipelineService(dbus.service.Object):

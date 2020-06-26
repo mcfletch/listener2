@@ -86,7 +86,6 @@ class Transcript(pydantic.BaseModel):
     partial: bool = False
     final: bool = True
     text: str = ''  # debugging text
-    words: List[str] = []
     tokens: List[str] = []  # tokens predicted by backend
     starts: List[float] = []  # relative starts of tokens
     words: List[str] = []  # space-separated blocks
@@ -94,6 +93,29 @@ class Transcript(pydantic.BaseModel):
     confidence: float = 0.0  # estimate of confidence for the whole transcript...
 
     rule_matches: List['RuleMatch'] = []  # set of matched rules...
+
+    @classmethod
+    def dbus_struct_signature(cls):
+        """Describe our dbus type signature"""
+        return 'bdas'
+
+    def dbus_struct(self):
+        """Create our dbus structure"""
+        return (
+            self.final,
+            self.confidence,
+            self.words,
+        )
+
+    @classmethod
+    def from_dbus_struct(cls, struct):
+        """Reconstitute from a dbus structure"""
+        return cls(
+            final=struct[0],
+            partial=not struct[0],
+            confidence=struct[1],
+            words=struct[2],
+        )
 
 
 class Utterance(pydantic.BaseModel):
@@ -116,6 +138,30 @@ class Utterance(pydantic.BaseModel):
     def best_guess(self):
         """Give our current best-guess"""
         return self.transcripts[0]
+
+    @classmethod
+    def dbus_struct_signature(cls):
+        """Describe our dbus type signature"""
+        return '(iba(%s)as)' % (Transcript.dbus_struct_signature())
+
+    def dbus_struct(self):
+        """Create our dbus structure"""
+        return (
+            self.utterance_number,
+            self.final,
+            [transcript.dbus_struct() for transcript in self.transcripts],
+            self.messages,
+        )
+
+    @classmethod
+    def from_dbus_struct(cls, struct):
+        """Reconstitute from a dbus structure"""
+        return cls(
+            utterance_number=struct[0],
+            final=struct[1],
+            partial=not struct[1],
+            transcripts=[Transcript.from_dbus_struct(x) for x in struct[2]],
+        )
 
 
 class Dictionary(pydantic.BaseModel):

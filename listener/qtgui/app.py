@@ -117,10 +117,18 @@ class ListenerApp(QtWidgets.QApplication):
     def get_service(self):
         """Get a DBus proxy to our ListenerService"""
         self.dbus_bus = dbus.SessionBus()
+        bus_name = dbus.service.BusName(defaults.DBUS_NAME, bus=self.dbus_bus)
+
         remote_object = self.dbus_bus.get_object(
             defaults.DBUS_NAME, defaults.DBUS_INTERPRETER_PATH,
         )
-        iface = dbus.Interface(remote_object, "com.example.SampleWidget")
+        iface = dbus.Interface(remote_object, defaults.DBUS_NAME)
+        log.info("Interface: %s", iface)
+        self.dbus_bus.add_signal_receiver(
+            self.on_partial_result,
+            '%s.PartialResult' % (defaults.DBUS_NAME,),
+            bus_name=bus_name,
+        )
 
     def create_overlay(self):
         window = dictationoverlay.DictationOverlay()
