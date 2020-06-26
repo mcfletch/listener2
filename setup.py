@@ -49,6 +49,7 @@ if __name__ == "__main__":
                 'listener-uinput-rebuild-mapping=listener.uinputdriver:rebuild_mapping',
                 'listener-default-contexts=listener.models:write_default_main',
                 'listener-systray-test=listener.qtgui.systrayicon:main',
+                'listener-compile-ui=listener.qtgui.compileui:main',
             ],
         },
         install_requires=requirements,

@@ -9,8 +9,9 @@ from PySide2.QtWidgets import (
     QMenu,
     QApplication,
 )
+from PySide2.QtCore import Qt
 from .. import defaults
-from . import icons, actions
+from . import icons, actions, audioview
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +24,8 @@ class ListenerView(QMainWindow):
         self.create_menu()
         self.create_main()
         self.create_status()
+
+        self.create_audio_view()
 
     @property
     def app(self):
@@ -54,4 +57,12 @@ class ListenerView(QMainWindow):
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage('%s is loading...' % (defaults.APP_NAME_HUMAN))
+
+    def create_audio_view(self):
+        """Create the audio control view"""
+        self.audio_view = audioview.ListenerAudio(self, Qt.SubWindow)
+        self.addDockWidget(
+            Qt.LeftDockWidgetArea, self.audio_view,
+        )
+        # self.audio_view.show()
 

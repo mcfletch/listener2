@@ -215,6 +215,10 @@ def main():
     registerdbus.register_dbus()
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     defaults.setup_logging(options)
+    QtGui.QIcon.setFallbackSearchPaths(
+        QtGui.QIcon.fallbackSearchPaths()
+        + [os.path.join(defaults.LISTENER_SOURCE, 'static')]
+    )
     app = ListenerApp([])
 
     sys.exit(app.exec_())
