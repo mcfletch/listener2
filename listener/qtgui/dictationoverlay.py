@@ -8,7 +8,8 @@ log = logging.getLogger(__name__)
 
 
 class DictationOverlay(QWidget):
-    """Frameless window showing the partial dictation results"""
+    """Frameless window showing the partial dictation results
+    """
 
     @property
     def app(self):
@@ -16,20 +17,23 @@ class DictationOverlay(QWidget):
         return QApplication.instance()
 
     DEFAULT_FLAGS = (
-        Qt.FramelessWindowHint
-        | Qt.WindowStaysOnTopHint
+        Qt.WindowStaysOnTopHint
+        | Qt.FramelessWindowHint
         | Qt.WindowTransparentForInput
         | Qt.Tool
+        | Qt.WindowDoesNotAcceptFocus
     )
     REPOSITION_FLAGS = Qt.WindowStaysOnTopHint | Qt.Tool
 
     def __init__(self, *args, **named):
         super(DictationOverlay, self).__init__(*args, **named)
+        self.setWindowTitle('%s Text Preview' % (defaults.APP_NAME_SHORT))
         self.setWindowFlags(self.DEFAULT_FLAGS)
         # self.setAttribute(Qt.WA_TranslucentBackground, True)
         # self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setMaximumHeight(40)
-        self.setMinimumWidth(400)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        # self.setMaximumHeight(40)
+        # self.setMinimumWidth(400)
         self.setWindowOpacity(0.8)
         self.label = QPushButton(defaults.APP_NAME_HUMAN, self)
         self.label.setFlat(True)

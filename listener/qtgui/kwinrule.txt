@@ -1,0 +1,22 @@
+[100]
+Description=Window settings for making listener preview float over desktop
+above=true
+aboverule=2
+clientmachine=fizban
+clientmachinematch=0
+fsplevel=0
+fsplevelrule=2
+noborder=true
+noborderrule=3
+skippager=true
+skippagerrule=2
+skipswitcher=true
+skipswitcherrule=2
+skiptaskbar=true
+skiptaskbarrule=2
+title=Listener Text Preview
+titlematch=1
+types=1
+wmclass=app.py listener voice dictation
+wmclasscomplete=true
+wmclassmatch=0
