@@ -3,7 +3,7 @@
 import sys, os, logging, subprocess, threading, time
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import systrayicon, mainview, dictationoverlay, actions
-from .. import defaults, registerdbus
+from .. import defaults, registerdbus, models
 import dbus
 import dbus.mainloop.glib
 
@@ -126,21 +126,21 @@ class ListenerApp(QtWidgets.QApplication):
         iface = dbus.Interface(remote_object, defaults.DBUS_NAME)
         log.info("Interface: %s", iface)
         self.dbus_bus.add_signal_receiver(
-            self.on_partial_result,
-            # None,
-            # None,
-            # None
-            path='/Listener',
-            signal_name=defaults.FINAL_RESULT_EVENT.split('.')[-1],
-            dbus_interface=defaults.DBUS_NAME,
-            # utf8_strings=True,
+            self.on_partial_result, dbus_interface=defaults.PARTIAL_RESULT_EVENT,
+        )
+        self.dbus_bus.add_signal_receiver(
+            self.on_final_result, dbus_interface=defaults.FINAL_RESULT_EVENT,
         )
 
-    def on_partial_result(self, *args):
+    def on_partial_result(self, utterance_struct):
         """Handle a partial result utterance"""
         utterance = models.Utterance.from_dbus_struct(utterance_struct)
         # TODO: this is coming in on glib, but is it actually in the gui thread?
-        self.overlay.set_text(' '.join(utterance.best_guess().words))
+        self.overlay.set_text(' '.join(utterance.best_guess().words), 1000)
+
+    def on_final_result(self, utterance_struct):
+        utterance = models.Utterance.from_dbus_struct(utterance_struct)
+        self.overlay.set_text(' '.join(utterance.best_guess().words), 2000)
 
     def create_overlay(self):
         window = dictationoverlay.DictationOverlay()
