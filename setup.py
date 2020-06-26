@@ -43,6 +43,7 @@ if __name__ == "__main__":
                 'listener=listener.qtgui.app:main',
                 'listener-register-dbus = listener.registerdbus:main',
                 'listener-dbus=listener.dbusservice:main',
+                'listener-dbus-client=listener.dbusdebugevents:main',
                 'listener-audio=listener.pipeaudio:main',
                 'listener-uinput-device=listener.uinputdriver:main',
                 'listener-uinput-rebuild-mapping=listener.uinputdriver:rebuild_mapping',
