@@ -15,7 +15,6 @@ from PySide2.QtGui import (QBrush, QColor, QConicalGradient, QCursor, QFont,
     QPixmap, QRadialGradient)
 from PySide2.QtWidgets import *
 
-import listenerenglish_rc
 
 class Ui_ListenerAudio(object):
     def setupUi(self, ListenerAudio):
@@ -51,8 +50,8 @@ class Ui_ListenerAudio(object):
         self.enable_audio = QPushButton(self.dockWidgetContents)
         self.enable_audio.setObjectName(u"enable_audio")
         icon1 = QIcon()
-        icon1.addFile(u":/static/microphone-inactive.svg", QSize(), QIcon.Normal, QIcon.Off)
-        icon1.addFile(u":/static/microphone-recording.svg", QSize(), QIcon.Normal, QIcon.On)
+        icon1.addFile(u"../static/microphone-inactive.svg", QSize(), QIcon.Normal, QIcon.Off)
+        icon1.addFile(u"../static/microphone-recording.svg", QSize(), QIcon.Normal, QIcon.On)
         self.enable_audio.setIcon(icon1)
 
         self.verticalLayout.addWidget(self.enable_audio)
