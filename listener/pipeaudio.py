@@ -20,6 +20,12 @@ def get_options():
         help='Named pipe to which to record (default: %s)' % (DEFAULT_TARGET,),
     )
     parser.add_argument(
+        '-d',
+        '--device',
+        default=None,
+        help='If provided, overrides the default audio device',
+    )
+    parser.add_argument(
         '-v',
         '--verbose',
         default=False,
@@ -41,9 +47,11 @@ def main():
             os.makedirs(directory, 0o700)
         os.mkfifo(target)
     verbose = [] if not options.verbose else ['-v']
+    device = [] if not options.device else ['-d', options.device]
     command = (
         ['parec',]
         + verbose
+        + device
         + [
             '--rate',
             str(defaults.SAMPLE_RATE),
