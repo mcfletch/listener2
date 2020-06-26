@@ -3,6 +3,7 @@ import logging
 from PySide2.QtWidgets import QMainWindow, QLabel, QWidget, QApplication, QPushButton
 from PySide2.QtCore import QTimer, Qt, SIGNAL
 from .. import defaults
+from . import appref
 
 log = logging.getLogger(__name__)
 
@@ -11,10 +12,7 @@ class DictationOverlay(QWidget):
     """Frameless window showing the partial dictation results
     """
 
-    @property
-    def app(self):
-        """Lookup the current application instance"""
-        return QApplication.instance()
+    app = property(appref.app)
 
     DEFAULT_FLAGS = (
         Qt.WindowStaysOnTopHint
