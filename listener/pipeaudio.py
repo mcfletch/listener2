@@ -7,6 +7,18 @@ log = logging.getLogger(__name__)
 DEFAULT_TARGET = defaults.DEFAULT_INPUT
 
 
+def ensure_target(target=DEFAULT_TARGET):
+    """Ensure that target directory exists and target is a fifo in it"""
+    directory = os.path.dirname(target)
+    if not os.path.exists(target):
+        log.info("Creating fifo in %s", target)
+        directory = os.path.dirname(target)
+        if not os.path.exists(directory):
+            os.makedirs(directory, 0o700)
+        os.mkfifo(target)
+    return target
+
+
 def get_options():
     import argparse
 
@@ -39,13 +51,7 @@ def main():
     options = get_options().parse_args()
     defaults.setup_logging(options)
     target = options.target
-    directory = os.path.dirname(target)
-    if not os.path.exists(target):
-        log.info("Creating fifo in %s", target)
-        directory = os.path.dirname(target)
-        if not os.path.exists(directory):
-            os.makedirs(directory, 0o700)
-        os.mkfifo(target)
+    ensure_target(target)
     verbose = [] if not options.verbose else ['-v']
     device = [] if not options.device else ['-d', options.device]
     command = (
