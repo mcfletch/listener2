@@ -1,10 +1,11 @@
 import sys, os, logging
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import icons, appstates
+from .. import defaults
 
 log = logging.getLogger(__name__)
 HERE = os.path.dirname(os.path.abspath((__file__)))
-ICON_DIR = os.path.normpath(os.path.join(HERE, '../static'))
+ICON_DIR = os.path.normpath(os.path.join(defaults.LISTENER_SOURCE, 'static'))
 
 
 class ListenerSystrayIcon(QtWidgets.QSystemTrayIcon):
