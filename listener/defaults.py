@@ -58,6 +58,8 @@ DBUS_SERVICE_PATH = '/Service'
 PARTIAL_RESULT_EVENT = '%s.PartialResult' % (DBUS_NAME,)
 FINAL_RESULT_EVENT = '%s.FinalResult' % (DBUS_NAME,)
 
+MICROPHONE_PREFERENCE_KEY = 'Microphone.Preference'
+
 
 def setup_logging(options):
     logging.basicConfig(

@@ -42,7 +42,7 @@ def get_icon(key):
             return QtGui.QIcon.fromTheme(key, get_icon('microphone'))
     elif isinstance(current, str):
         if key in ICONS:
-            log.warning("Loading %s from %s", key, current)
+            log.debug("Loading %s from %s", key, current)
             current = ICONS[key] = QtGui.QIcon(current)
         else:
             raise RuntimeError("We didn't load our default icon (microphone.svg)!")

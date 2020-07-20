@@ -60,5 +60,5 @@ class ListenerView(QMainWindow):
         self.addDockWidget(
             Qt.LeftDockWidgetArea, self.audio_view,
         )
-        # self.audio_view.show()
+        self.audio_view.show()
 

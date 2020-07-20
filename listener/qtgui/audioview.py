@@ -1,7 +1,8 @@
 """Window configuring the audio input source"""
-import subprocess, time, logging, threading
+import subprocess, time, logging, threading, signal
 from PySide2.QtWidgets import QDockWidget, QPushButton, QVBoxLayout
-from ..resources import listeneraudio
+from PySide2 import QtCore
+from ..static import listeneraudio
 from . import icons
 from . import appref
 
@@ -55,9 +56,13 @@ class ListenerAudio(listeneraudio.Ui_ListenerAudio, QDockWidget):
         self.want_input = True
         self.setupUi(self)
         self.set_available_inputs()
-        thread = threading.Thread(target=self.run_stream_thread,)
-        thread.setDaemon(True)
-        self.running_thread = thread
+        self.input_select.connect(
+            QtCore.SIGNAL('currentIndexChanged()'), self.on_input_selected
+        )
+        # thread = threading.Thread(target=self.run_stream_thread,)
+        # thread.setDaemon(True)
+        # thread.start()
+        # self.running_thread = thread
 
         # self.microphone_start = QPushButton(
         #     icons.get_icon('microphone-inactive'), 'Mic', self
@@ -78,40 +83,48 @@ class ListenerAudio(listeneraudio.Ui_ListenerAudio, QDockWidget):
                 continue
             self.input_select.addItem(source['description'], source)
 
-            current = self.current_input()
-            index = self.input_select.findText(current,)
-            if index > -1:
-                self.input_select.setCurrentIndex(index)
+        current = self.current_input()
+        log.info("Current user preference: %s", current)
+        index = self.input_select.findText(current,)
+        if index > -1:
+            self.input_select.setCurrentIndex(index)
 
     def current_input(self):
-        current = self.app.settings.value(self.INPUT_SAVE_KEY,)
+        current = self.app.settings.value(self.INPUT_SAVE_KEY)
         if current:
             return current
         return None
 
-    def run_stream_thread(self):
-        """Run our listener-audio stream in a subprocess"""
-        while self.want_input:
-            source = self.current_input()
-            command = [
-                'listener-audio',
-            ]
-            if source:
-                command += ['--device', source]
-            try:
-                pipe = subprocess.Popen(command)
-                try:
-                    while (
-                        pipe.poll() is None
-                        and self.want_input
-                        and source == self.current_input()
-                    ):
-                        time.sleep(1)
-                finally:
-                    if pipe.poll() is None:
-                        pipe.kill()
+    def on_input_selected(self, index: int):
+        """We've selected an index, make it our microphone"""
+        current = self.itemData(index)
+        self.app.settings.setValue(self.INPUT_SAVE_KEY, current['description'])
+        log.info("Updating user preference: %s", current['description'])
+        return True
 
-            except Exception as err:
-                log.error("Failure during audio pipe setup")
-                time.sleep(2.0)
+    # def run_stream_thread(self):
+    #     """Run our listener-audio stream in a subprocess"""
+    #     while self.want_input:
+    #         source = self.current_input()
+    #         command = [
+    #             'listener-audio',
+    #         ]
+    #         if source:
+    #             command += ['--device', source]
+    #         try:
+    #             pipe = subprocess.Popen(command)
+    #             try:
+    #                 while (
+    #                     pipe.poll() is None
+    #                     and self.want_input
+    #                     and source == self.current_input()
+    #                 ):
+    #                     time.sleep(1)
+    #             finally:
+    #                 if pipe.poll() is None:
+    #                     os.kill(pipe.pid, signal.SIGINT)
+
+    #         except Exception as err:
+    #             log.error("Failure during audio pipe setup")
+    #             time.sleep(2.0)
 

@@ -2,7 +2,7 @@
 """Qt GUI Application for controlling Listener"""
 import sys, os, logging, subprocess, threading, time
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
-from . import systrayicon, mainview, dictationoverlay, actions
+from . import systrayicon, mainview, dictationoverlay, actions, qmicrophone
 from .. import defaults, registerdbus, models
 import dbus
 import dbus.mainloop.glib
@@ -24,11 +24,10 @@ class ListenerApp(QtWidgets.QApplication):
         self.create_event_listener()
         self.history = []
         self.main_view = mainview.ListenerView()
-        # self.start_pipe(self.run_audio_pipe)
-        # self.start_pipe(self.run_ibus_engine)
         self.main_view.showMaximized()
         self.get_service()
         self.create_overlay()
+        # self.create_microphone()
 
     def cleanup(self):
         self.wanted = False
@@ -72,6 +71,11 @@ class ListenerApp(QtWidgets.QApplication):
         # QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Quit)
 
         self.systray.setContextMenu(menu)
+
+    def create_microphone(self):
+        """Create our microphone pipeline"""
+        self.microphone = qmicrophone.Microphone(None,)
+        self.microphone.on_go_live()
 
     def check_container(self):
         """Check if the container service is running"""
