@@ -2,7 +2,7 @@
 import glob, subprocess, os
 from .. import defaults
 
-RESOURCES = os.path.join(defaults.LISTENER_SOURCE, 'resources')
+RESOURCES = os.path.join(defaults.LISTENER_SOURCE, 'static')
 
 
 def main():

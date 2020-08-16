@@ -49,7 +49,6 @@ class Ui_ListenerAudio(object):
         icon.addFile(u"static/microphone.svg", QSize(), QIcon.Normal, QIcon.Off)
         ListenerAudio.setWindowIcon(icon)
         ListenerAudio.setAutoFillBackground(False)
-        ListenerAudio.setFloating(True)
         self.dockWidgetContents = QWidget()
         self.dockWidgetContents.setObjectName(u"dockWidgetContents")
         self.verticalLayout_2 = QVBoxLayout(self.dockWidgetContents)

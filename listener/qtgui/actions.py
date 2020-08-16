@@ -3,6 +3,7 @@ from PySide2.QtWidgets import QAction
 from PySide2.QtGui import QKeySequence
 from PySide2.QtCore import SIGNAL
 from PySide2.QtCore import QObject
+from PySide2.QtCore import Signal
 from . import icons
 
 

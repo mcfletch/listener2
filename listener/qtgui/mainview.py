@@ -7,6 +7,8 @@ from PySide2.QtWidgets import (
     QMdiArea,
     QMenuBar,
     QMenu,
+    QDockWidget,
+    QVBoxLayout,
 )
 from PySide2.QtCore import Qt
 from .. import defaults
@@ -18,6 +20,9 @@ log = logging.getLogger(__name__)
 class ListenerView(QMainWindow):
     def __init__(self, *args):
         super(ListenerView, self).__init__(*args)
+
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
         self.window_branding()
 
         self.create_menu()
@@ -56,9 +61,11 @@ class ListenerView(QMainWindow):
 
     def create_audio_view(self):
         """Create the audio control view"""
-        self.audio_view = audioview.ListenerAudio(self, Qt.SubWindow)
+        self.audio_dock = QDockWidget("Audio", self)
+        self.audio_dock.setFloating(False)
+        self.audio_view = audioview.ListenerAudio(self)
+        self.audio_dock.setWidget(self.audio_view)
         self.addDockWidget(
-            Qt.LeftDockWidgetArea, self.audio_view,
+            Qt.LeftDockWidgetArea, self.audio_dock,
         )
-        self.audio_view.show()
 

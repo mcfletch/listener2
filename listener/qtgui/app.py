@@ -12,6 +12,7 @@ HERE = os.path.dirname(os.path.abspath((__file__)))
 
 class ListenerApp(QtWidgets.QApplication):
     wanted = True
+    AUDIO_SETTINGS_CHANGED = QtCore.Signal()
 
     def __init__(self, argv, *args, **named):
         super(ListenerApp, self).__init__(argv)
@@ -28,6 +29,7 @@ class ListenerApp(QtWidgets.QApplication):
         self.get_service()
         self.create_overlay()
         # self.create_microphone()
+        self.AUDIO_SETTINGS_CHANGED.connect(self.on_audio_settings_changed)
 
     def cleanup(self):
         self.wanted = False
@@ -195,6 +197,9 @@ class ListenerApp(QtWidgets.QApplication):
     def on_reposition_overlay(self, evt=None, **args):
         """Ask the overlay to show without closing immediately"""
         self.overlay.show_for_reposition()
+
+    def on_audio_settings_changed(self):
+        log.warning("Should restart audio with new settings")
 
 
 log = logging.getLogger(__name__)
