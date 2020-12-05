@@ -44,6 +44,12 @@ def get_options():
         action='store_true',
         help='Enable verbose logging (for development/debugging)',
     )
+    parser.add_argument(
+        '--volume',
+        default='100',
+        type=int,
+        help='Volume as a percent 0 to 100 for pacat',
+    )
     return parser
 
 
@@ -55,7 +61,7 @@ def main():
     ensure_target(target)
     verbose = [] if not options.verbose else ['-v']
     device = (
-        [] if not options.device else ['-d', '"%s"' % options.device,]
+        [] if not options.device else ['-d', '%s' % options.device,]
     )
     command = (
         ['parec',]
@@ -69,6 +75,8 @@ def main():
             '--channels',
             '1',
             '--raw',
+            '--volume',
+            str(options.volume),
             '--record',
             '--client-name',
             '%s-microphone' % (defaults.APP_NAME,),

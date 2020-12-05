@@ -13,6 +13,7 @@ class ListenerSystrayIcon(QtWidgets.QSystemTrayIcon):
 
     def set_state(self, state='stopped'):
         """Set state icon showing overall current state"""
+        log.info('Listener state change to %r', state)
         app_state = appstates.by_key(state)
         icon = app_state.icon
         gui_icon = icons.get_icon(icon)

@@ -14,6 +14,8 @@ class ListenerApp(QtWidgets.QApplication):
     wanted = True
     AUDIO_SETTINGS_CHANGED = QtCore.Signal()
     audio_pipeline = None
+    audio_wanted = True
+    audio_parameters = None
 
     def __init__(self, argv, *args, **named):
         super(ListenerApp, self).__init__(argv)
@@ -96,17 +98,41 @@ class ListenerApp(QtWidgets.QApplication):
                 '-v',
             ]
             pipe = subprocess.Popen(command,)
+            self.display_status('IBus Daemon Started')
             while pipe.poll() is None and self.wanted:
                 time.sleep(1.0)
 
     def run_audio_pipe(self):
+        log.info("Run audio pipe starting")
         while self.wanted:
-            command = [
-                'listener-audio',
-            ]
-            pipe = subprocess.Popen(command,)
-            while pipe.poll() is None and self.wanted:
-                time.sleep(1.0)
+            try:
+                if self.audio_wanted:
+                    log.info("Starting audio pipeline")
+                    audio_parameters = self.audio_parameters
+                    command = ['listener-audio',] + (
+                        audio_parameters if audio_parameters else []
+                    )
+                    log.info("Audio pipeline: %s", command)
+                    self.audio_pipeline = subprocess.Popen(command,)
+                    self.display_status('Audio Pipe Started')
+                    while (
+                        self.audio_pipeline.poll() is None
+                        and self.audio_wanted
+                        and audio_parameters == self.audio_parameters
+                    ):
+                        time.sleep(1.0)
+                    if self.audio_pipeline.poll() is None:
+                        self.audio_pipeline.kill()
+                    self.audio_pipeline = None
+                else:
+                    log.debug("Waiting to start audio")
+                    time.sleep(0.25)
+            except Exception as err:
+                log.warning("Failure in audio pipe running")
+                self.display_status('Failure in audio pipe, will retry...')
+                if self.audio_pipeline:
+                    self.audio_pipeline.kill()
+                time.sleep(2)
 
     def create_event_listener(self):
         """Read json events from event source"""
@@ -186,13 +212,13 @@ class ListenerApp(QtWidgets.QApplication):
     def on_start_listening(self, evt=None, **args):
         """Tell the service to start listening"""
         log.info("Start listening request")
-        self.main_view.status_bar.showMessage('Start Listening...')
+        self.display_status('Start Listening...')
         self.systray.set_state('start-listening')
 
     def on_stop_listening(self, evt=None, **args):
         """Tell the service to start listening"""
         log.info("Stop listening request")
-        self.main_view.status_bar.showMessage('Stop Listening...')
+        self.display_status('Stop Listening...')
         self.systray.set_state('stop-listening')
 
     def on_reposition_overlay(self, evt=None, **args):
@@ -209,29 +235,36 @@ class ListenerApp(QtWidgets.QApplication):
         source = self.settings.value(defaults.MICROPHONE_PREFERENCE_KEY)
 
         if enabled:
-            command = ['listener-audio', '-v']
+            command = []
             if source:
-                command.extend(['-d', source])
-            if (
-                self.audio_pipeline
-                and self.audio_pipeline.command == command
-                and self.audio_pipeline.poll() is None
-            ):
-                log.info("No update to audio pipeline")
-                return
-            log.info("Restarting audio pipeline")
-            self.stop_audio()
-            self.audio_pipeline = subprocess.Popen(command)
+                name = None
+                from . import audioview
+
+                for device in audioview.describe_pulse_sources():
+                    if device.get('description') == source:
+                        name = device.get('name')
+                    else:
+                        log.info("No match on %s", device.get('description'))
+                if name:
+                    command.extend(['-d', name])
+                else:
+                    log.warning("Unable to find selected preferred device: %s", source)
+            if volume:
+                command.extend(['--volume', str(volume)])
+            self.audio_parameters = command
+            self.start_audio()
         else:
             log.info("Stopping audio pipeline")
             self.stop_audio()
 
+    def start_audio(self):
+        """Start audio pipeline"""
+        self.audio_wanted = True
+        return True
+
     def stop_audio(self):
         """Stop our audio pipeline"""
-        if self.audio_pipeline:
-            self.audio_pipeline, audio_pipeline = (None, self.audio_pipeline)
-            audio_pipeline.kill()
-            return True
+        self.audio_wanted = False
         return False
 
     def ensure_container(self):
@@ -244,14 +277,16 @@ class ListenerApp(QtWidgets.QApplication):
             subprocess.check_output(['listener-docker'])
             status = self.get_container_status()
             if not status:
-                self.main_view.status_bar.setStatusTip(
-                    'Could not start the docker container'
-                )
+                self.display_status('Could not start the docker container')
                 return
         for structure in status:
             status = structure['State']['Status']
             label = '%s: %s' % (defaults.DOCKER_CONTAINER, status)
             self.main_view.container_view.container_name.setText(label)
+
+    def display_status(self, message):
+        """Set our status-bar value"""
+        self.main_view.status_bar.showMessage(message)
 
     def get_container_status(self):
         """Run docker inspect to get the current container information"""
@@ -294,6 +329,7 @@ def main():
     QtGui.QIcon.setFallbackSearchPaths(icon_search_paths)
     app = ListenerApp([])
     t = threading.Thread(target=app.ensure_container)
+    t = threading.Thread(target=app.run_audio_pipe)
     t.setDaemon(True)
     t.start()
 
