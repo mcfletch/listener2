@@ -73,17 +73,24 @@ class Interpreter(pydantic.BaseModel):
                 # the pop
                 if event.transcripts[0].words in ([], [''], ['he']):
                     continue
-                context.score(event)
-                best_guess = event.best_guess()
-                for t in event.transcripts:
-                    log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
-                event = context.apply_rules(event)
-                log.info('    ==> %s', event.best_guess().words)
-                result_queue.put(event)
+                result_queue.put(self.process_event(context, event))
             elif event.partial:
                 result_queue.put(event)
             else:
                 log.info('BACKEND: %s', " ".join(getattr(event, 'messages', None)))
+
+    def process_event(self, context, event):
+        """Process a single (final) event to apply our rules/scorings
+        
+        This is split out so that we can easily test that we are applying the rules
+        """
+        context.score(event)
+        for t in event.transcripts:
+            log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
+        event = context.apply_rules(event)
+        best_guess = event.best_guess()
+        log.info('    ==> %s', event.best_guess().words)
+        return event
 
 
 def main():
