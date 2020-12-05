@@ -56,7 +56,7 @@ class DictationOverlay(QWidget):
         self.disconnect(SIGNAL('click()'), self.save_new_position)
 
     def set_text(self, text, timeout=500):
-        log.info("Setting text: %s", text)
+        # log.info("Setting text: %s", text)
         self.label.setText(text)
         self.label.adjustSize()
         self.adjustSize()
