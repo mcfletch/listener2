@@ -81,7 +81,10 @@ def find_nvidia_cards():
     for line in listing.strip().splitlines():
         address = line.split()[0]
         for link in glob.glob('/dev/dri/by-path/pci-0000:%s-*' % (address,)):
-            devices.append(os.path.join(os.path.dirname(link), os.readlink(link),))
+            resolved = os.path.abspath(
+                os.path.join(os.path.dirname(link), os.readlink(link))
+            )
+            devices.append(resolved)
     if not devices:
         log.error("Unable to find any nvidia cards with lspci")
         raise SystemExit(2)

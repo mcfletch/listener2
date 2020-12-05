@@ -3,6 +3,7 @@ import subprocess, time, logging, threading, signal
 from PySide2.QtWidgets import QWidget, QPushButton, QVBoxLayout
 from PySide2 import QtCore
 from ..static import listeneraudiosettings
+from .. import defaults
 from . import icons
 from . import appref
 from . import actions
@@ -42,6 +43,7 @@ def describe_pulse_sources():
                     break
     if current_source:
         sources.append(current_source)
+
     return sources
 
 
@@ -50,9 +52,9 @@ class ListenerAudio(listeneraudiosettings.Ui_ListenerAudioSettings, QWidget):
 
     app = property(appref.app)
     GEOMETRY_SAVE_KEY = 'audioview.geometry'
-    INPUT_SAVE_KEY = 'audioview.microphone'
-    VOLUME_SAVE_KEY = 'audioview.volume'
-    AUDIO_ENABLED_KEY = 'audioview.enable_audio'
+    INPUT_SAVE_KEY = defaults.MICROPHONE_PREFERENCE_KEY
+    VOLUME_SAVE_KEY = defaults.MICROPHONE_VOLUME_KEY
+    AUDIO_ENABLED_KEY = defaults.MICROPHONE_ENABLED_KEY
 
     def __init__(self, *args, **named):
         super(ListenerAudio, self).__init__(*args, **named)
@@ -107,6 +109,7 @@ class ListenerAudio(listeneraudiosettings.Ui_ListenerAudioSettings, QWidget):
     def on_input_selected(self, index: int):
         """We've selected an index, make it our microphone"""
         current = self.input_select.itemData(index)
+        log.info('Record selected: %s', current)
         self.app.settings.setValue(self.INPUT_SAVE_KEY, current['description'])
         log.info("Updating user preference: %s", current['description'])
         self.app.AUDIO_SETTINGS_CHANGED.emit()

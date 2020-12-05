@@ -24,9 +24,9 @@ which arranges for the model files to be downloaded and cached,
 builds the docker container, and then runs it::
 
     # Note, depends on having the dependencies listed in 
-    # `dependencies.txt` installed
+    # `dependencies.txt` (for apt) installed
     python3 setup.py develop --user
-    listener-docker
+    listener-docker --build 
 
 Note: your user must be in both the `docker` and `video` groups
 to allow you to start docker containers and access the nvidia graphics
@@ -80,7 +80,6 @@ Running the IBus daemon on your desktop (not in the docker container)::
     listener-ibus
 
 
-
 IBus Running on your Desktop
 .............................
 
@@ -102,3 +101,8 @@ desktops use Qt. The dependencies listed should have installed
 integrations for GTK-based applications, note that you will need to
 restart the applications entirely in order to pick up the IBus 
 entry methods.
+
+You will sometimes find that the IBus  daemon forgets that it is
+supposed to be processing input events and will simply stop processing.
+To fix this you  need to restart the daemon. On KDE  you can accomplish 
+this by right clicking on the input method widget  and choosing restart.

@@ -61,12 +61,14 @@ class ListenerEngine(IBus.Engine):
     )
     INSTANCE = None
     wanted = False
+    stand_alone = None
 
-    def __init__(self, stand_alone=False):
+    def __init__(self, stand_alone=None):
         """initialize the newly created engine
 
         """
         self.properties = IBus.PropList()
+        stand_alone = stand_alone if stand_alone is not None else self.stand_alone
         # self.properties.append(IBus.Property(
         #     key='source',
         #     type=IBus.PropType.NORMAL,
@@ -79,7 +81,7 @@ class ListenerEngine(IBus.Engine):
             IBus.Property(
                 key='listening',
                 type=IBus.PropType.TOGGLE,
-                label='DeepSpeech',
+                label='Listener',
                 tooltip='Toggle whether the engine is currently listening',
                 visible=True,
             )
@@ -180,6 +182,8 @@ class ListenerEngine(IBus.Engine):
             block = ''.join(to_send)
             log.debug('> %s', block)
             self.commit_text(IBus.Text.new_from_string(''.join(block)))
+        else:
+            log.info("Partial")
 
     def first_transcript(self, event):
         for transcript in event.transcripts:
@@ -209,8 +213,7 @@ def get_options():
         '--live',
         default=False,
         action='store_true',
-        help='If true, register on the DBus name %s and interact as a regular engine'
-        % (COMPONENT,),
+        help='If true, directly register and start processing data instead of waiting for activation via DBUS',
     )
     return parser
 
@@ -224,7 +227,7 @@ def register_engine(bus, live=False):
         license='LGPL',
         author='Mike C. Fletcher',
         homepage='https://github.com/mcfletch/deepspeech-docker',
-        command_line='listener-ibus -r',
+        command_line='listener-ibus',
         textdomain='en',  # TODO: is this really language?
     )
     component.add_engine(ListenerEngine.DESCRIPTION)
@@ -232,17 +235,22 @@ def register_engine(bus, live=False):
     if not connection:
         raise RuntimeError("IBus has no connection")
     factory = IBus.Factory.new(connection)
+    log.info("Adding ibus engine at %r", SERVICE_NAME)
     factory.add_engine(SERVICE_NAME, GObject.type_from_name(NAME))
     if not live:
+        log.info('Running in development (non-live) mode with direct registation')
+        ListenerEngine.stand_alone = True
         assert bus.register_component(component), "Unable to register our component"
 
         def on_set_engine(source, result, data=None):
             if result.had_error():
                 log.error("Unable to register!")
                 MAINLOOP.quit()
+            else:
+                log.info('Set engine called: %s, %s, %s', source, result, data)
 
         def set_engine():
-            log.info("Registering IBus Service at %s", SERVICE_NAME)
+            log.info("Registering IBus Service at %r", SERVICE_NAME)
             bus.set_global_engine_async(
                 SERVICE_NAME,
                 5000,  # shouldn't take this long!
@@ -253,6 +261,7 @@ def register_engine(bus, live=False):
 
         GLib.idle_add(set_engine)
     else:
+        log.info('Registering for activation via DBUS')
         GLib.idle_add(
             bus.request_name, COMPONENT, IBus.BusNameFlag.ALLOW_REPLACEMENT,
         )

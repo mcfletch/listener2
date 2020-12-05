@@ -83,7 +83,7 @@ class Interpreter(pydantic.BaseModel):
             elif event.partial:
                 result_queue.put(event)
             else:
-                log.info('BACKEND: %s', " ".join(event.get('messages')))
+                log.info('BACKEND: %s', " ".join(getattr(event, 'messages', None)))
 
 
 def main():

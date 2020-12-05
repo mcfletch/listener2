@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 """Qt GUI Application for controlling Listener"""
-import sys, os, logging, subprocess, threading, time
+import sys, os, logging, subprocess, threading, time, json
 from PySide2 import QtCore, QtGui, QtWidgets, QtMultimedia
 from . import systrayicon, mainview, dictationoverlay, actions, qmicrophone
 from .. import defaults, registerdbus, models
@@ -13,6 +13,7 @@ HERE = os.path.dirname(os.path.abspath((__file__)))
 class ListenerApp(QtWidgets.QApplication):
     wanted = True
     AUDIO_SETTINGS_CHANGED = QtCore.Signal()
+    audio_pipeline = None
 
     def __init__(self, argv, *args, **named):
         super(ListenerApp, self).__init__(argv)
@@ -199,7 +200,69 @@ class ListenerApp(QtWidgets.QApplication):
         self.overlay.show_for_reposition()
 
     def on_audio_settings_changed(self):
-        log.warning("Should restart audio with new settings")
+        """Handle a change to our audio settings (potentially restarting audio)"""
+        enabled = self.settings.value(defaults.MICROPHONE_ENABLED_KEY) or ''
+        log.info("Raw enabled value %r", enabled)
+        if isinstance(enabled, str):
+            enabled = enabled.lower() in ('true', 'yes', 'on')
+        volume = int(self.settings.value(defaults.MICROPHONE_VOLUME_KEY) or 99)
+        source = self.settings.value(defaults.MICROPHONE_PREFERENCE_KEY)
+
+        if enabled:
+            command = ['listener-audio', '-v']
+            if source:
+                command.extend(['-d', source])
+            if (
+                self.audio_pipeline
+                and self.audio_pipeline.command == command
+                and self.audio_pipeline.poll() is None
+            ):
+                log.info("No update to audio pipeline")
+                return
+            log.info("Restarting audio pipeline")
+            self.stop_audio()
+            self.audio_pipeline = subprocess.Popen(command)
+        else:
+            log.info("Stopping audio pipeline")
+            self.stop_audio()
+
+    def stop_audio(self):
+        """Stop our audio pipeline"""
+        if self.audio_pipeline:
+            self.audio_pipeline, audio_pipeline = (None, self.audio_pipeline)
+            audio_pipeline.kill()
+            return True
+        return False
+
+    def ensure_container(self):
+        """Ensure the container is running"""
+        status = self.get_container_status()
+        if not status:
+            self.main_view.showMessage(
+                'Container is not currently running, attempting to build and start it'
+            )
+            subprocess.check_output(['listener-docker'])
+            status = self.get_container_status()
+            if not status:
+                self.main_view.status_bar.setStatusTip(
+                    'Could not start the docker container'
+                )
+                return
+        for structure in status:
+            status = structure['State']['Status']
+            label = '%s: %s' % (defaults.DOCKER_CONTAINER, status)
+            self.main_view.container_view.container_name.setText(label)
+
+    def get_container_status(self):
+        """Run docker inspect to get the current container information"""
+        try:
+            output = subprocess.check_output(
+                ['docker', 'inspect', defaults.DOCKER_CONTAINER,]
+            )
+        except subprocess.CalledProcessError as err:
+            return []
+        else:
+            return json.loads(output)
 
 
 log = logging.getLogger(__name__)
@@ -230,6 +293,9 @@ def main():
 
     QtGui.QIcon.setFallbackSearchPaths(icon_search_paths)
     app = ListenerApp([])
+    t = threading.Thread(target=app.ensure_container)
+    t.setDaemon(True)
+    t.start()
 
     sys.exit(app.exec_())
 

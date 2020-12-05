@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 """Low level process to create an pulse-audio feed into the recogniser daemon"""
 import os, subprocess, logging, time, re
-from . import defaults
+from . import defaults, exitonparentexit
 
 log = logging.getLogger(__name__)
 DEFAULT_TARGET = defaults.DEFAULT_INPUT
@@ -23,7 +23,7 @@ def get_options():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Use ALSA arecord to pipe audio to listener',
+        description='Use parec arecord to pipe audio to listener',
     )
     parser.add_argument(
         '-t',
@@ -50,10 +50,13 @@ def get_options():
 def main():
     options = get_options().parse_args()
     defaults.setup_logging(options)
+    exitonparentexit.exit_on_parent_exit()
     target = options.target
     ensure_target(target)
     verbose = [] if not options.verbose else ['-v']
-    device = [] if not options.device else ['-d', options.device]
+    device = (
+        [] if not options.device else ['-d', '"%s"' % options.device,]
+    )
     command = (
         ['parec',]
         + verbose

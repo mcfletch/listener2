@@ -28,7 +28,7 @@ CONTEXT_DIR = os.path.join(CONFIG_DIR, 'contexts')
 
 CACHE_DIR = os.path.join(USER_CACHE_DIR, APP_NAME)
 MODEL_CACHE = os.path.join(CACHE_DIR, 'model')
-DEFAULT_DEEPSPEECH_VERSION = '0.7.3'
+DEFAULT_DEEPSPEECH_VERSION = '0.9.2'
 RELEASE_URL = 'https://github.com/mozilla/DeepSpeech/releases/download/v%(version)s/'
 MODEL_FILE = 'deepspeech-%(version)s-models.pbmm'
 SCORER_FILE = 'deepspeech-%(version)s-models.scorer'
@@ -58,7 +58,9 @@ DBUS_SERVICE_PATH = '/Service'
 PARTIAL_RESULT_EVENT = '%s.PartialResult' % (DBUS_NAME,)
 FINAL_RESULT_EVENT = '%s.FinalResult' % (DBUS_NAME,)
 
-MICROPHONE_PREFERENCE_KEY = 'Microphone.Preference'
+MICROPHONE_PREFERENCE_KEY = 'audioview.microphone'
+MICROPHONE_VOLUME_KEY = 'audioview.volume'
+MICROPHONE_ENABLED_KEY = 'audioview.enable_audio'
 
 
 def setup_logging(options):

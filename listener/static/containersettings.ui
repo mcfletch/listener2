@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ContainerSettings</class>
+ <widget class="QWidget" name="ContainerSettings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>200</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QPushButton" name="enable_audio">
+     <property name="text">
+      <string>Listening</string>
+     </property>
+     <property name="icon">
+      <iconset>
+       <normaloff>static/microphone-inactive.svg</normaloff>
+       <normalon>static/microphone-recording.svg</normalon>static/microphone-inactive.svg</iconset>
+     </property>
+     <property name="shortcut">
+      <string>Alt+L</string>
+     </property>
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="container_name">
+     <property name="text">
+      <string>Container status...</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -55,7 +55,7 @@ The current state of the project is a proof of concept, what works:
 
 ## Quick Start
 
-Since there is not yet a working graphically user interface the set up is not as
+Since there is not yet a working graphical user interface the set up is not as
 friendly as commercial voice dictation solutions.
 ```
 sudo apt install $(cat dependencies.txt)

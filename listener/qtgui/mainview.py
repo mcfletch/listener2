@@ -12,7 +12,7 @@ from PySide2.QtWidgets import (
 )
 from PySide2.QtCore import Qt
 from .. import defaults
-from . import icons, actions, audioview, appref
+from . import icons, actions, audioview, appref, containersettings
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class ListenerView(QMainWindow):
         self.create_main()
         self.create_status()
 
+        self.create_container_view()
         self.create_audio_view()
 
     app = property(appref.app)
@@ -69,3 +70,12 @@ class ListenerView(QMainWindow):
             Qt.LeftDockWidgetArea, self.audio_dock,
         )
 
+    def create_container_view(self):
+        """Create the container view"""
+        self.container_dock = QDockWidget("Container", self)
+        self.container_dock.setFloating(False)
+        self.container_view = containersettings.ContainerSettings(self)
+        self.container_dock.setWidget(self.container_view)
+        self.addDockWidget(
+            Qt.LeftDockWidgetArea, self.container_dock,
+        )
