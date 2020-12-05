@@ -14,7 +14,7 @@ class ListenerApp(QtWidgets.QApplication):
     wanted = True
     AUDIO_SETTINGS_CHANGED = QtCore.Signal()
     audio_pipeline = None
-    audio_wanted = True
+    audio_wanted = False
     audio_parameters = None
 
     def __init__(self, argv, *args, **named):
@@ -33,6 +33,7 @@ class ListenerApp(QtWidgets.QApplication):
         self.create_overlay()
         # self.create_microphone()
         self.AUDIO_SETTINGS_CHANGED.connect(self.on_audio_settings_changed)
+        self.on_audio_settings_changed()
 
     def cleanup(self):
         self.wanted = False
@@ -269,6 +270,7 @@ class ListenerApp(QtWidgets.QApplication):
 
     def ensure_container(self):
         """Ensure the container is running"""
+        log.info("Checking on the container...")
         status = self.get_container_status()
         if not status:
             self.main_view.showMessage(
@@ -282,6 +284,7 @@ class ListenerApp(QtWidgets.QApplication):
         for structure in status:
             status = structure['State']['Status']
             label = '%s: %s' % (defaults.DOCKER_CONTAINER, status)
+            log.info('Updating status: %s', label)
             self.main_view.container_view.container_name.setText(label)
 
     def display_status(self, message):
@@ -328,8 +331,8 @@ def main():
 
     QtGui.QIcon.setFallbackSearchPaths(icon_search_paths)
     app = ListenerApp([])
-    t = threading.Thread(target=app.ensure_container)
     t = threading.Thread(target=app.run_audio_pipe)
+    t = threading.Thread(target=app.ensure_container)
     t.setDaemon(True)
     t.start()
 
