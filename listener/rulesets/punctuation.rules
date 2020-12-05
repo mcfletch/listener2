@@ -18,7 +18,6 @@ opened paren => 'open','paren'
 opened prien => 'open','paren'
 
 closed paren => 'close','paren'
-close paren => 'close','paren'
 clothes paren => 'close','paren'
 under score => 'underscore'
 
@@ -41,7 +40,6 @@ apostrophidas => 'apostrophe','s'
 apostrophe s => ^"'s"
 
 
-per cent => 'percent'
 back slash => 'backslash'
 colden => 'colon'
 coldan => 'colon'

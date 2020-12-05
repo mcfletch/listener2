@@ -8,6 +8,18 @@ from listener import (
 )
 
 
+def list_in_list(search, env):
+    if isinstance(search, str):
+        search = [search]
+    if isinstance(env, str):
+        env = [env]
+    while len(env) >= len(search):
+        if env[: len(search)] == search:
+            return True
+        env = env[1:]
+    return False
+
+
 class TestInterpreter(unittest.TestCase):
     def test_loading(self):
         rules, ruleset = ruleloader.load_rules('default')
@@ -30,11 +42,11 @@ class TestInterpreter(unittest.TestCase):
             assert match.rule == rule
             result = match.rule(match)
             if match.rule.text:
-                assert match.rule.text in result.words, result
+                assert list_in_list(match.rule.text, result), result
             if match.rule.no_space_after:
-                assert result.words[-1] == '^', result
+                assert result[-1] == '^', result
             if match.rule.no_space_before:
-                assert result.words[0] == '^', result
+                assert result[0] == '^', result
 
     def test_apply_rules(self):
         rules, ruleset = ruleloader.load_rules('default')
