@@ -244,7 +244,7 @@ def get_options():
         '-m',
         '--model',
         default='/src/model/deepspeech-%s-models.pbmm'
-        % os.environ.get('DEEPSPEECH_VERSION', '0.7.3'),
+        % os.environ.get('DEEPSPEECH_VERSION', '0.9.2'),
         help='DeepSpeech published model',
     )
     parser.add_argument(
@@ -264,7 +264,7 @@ def get_options():
         '--verbose',
         default=False,
         action='store_true',
-        help='Enable verbose logging (for developmen/debugging)',
+        help='Enable verbose logging (for development/debugging)',
     )
     return parser
 
