@@ -23,7 +23,12 @@ def create_client_socket(sockname):
     """Connect to the given socket as a read-only client"""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.setblocking(False)
-    sock.connect(sockname)
+    try:
+        sock.connect(sockname)
+    except (Exception) as err:
+        log.warning("Failure connecting to: %s", sockname)
+        err.args += (sockname,)
+        raise
     return sock
 
 
