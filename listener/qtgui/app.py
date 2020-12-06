@@ -8,6 +8,7 @@ import dbus
 import dbus.mainloop.glib
 
 HERE = os.path.dirname(os.path.abspath((__file__)))
+log = logging.getLogger(__name__)
 
 
 class ListenerApp(QtWidgets.QApplication):
@@ -19,6 +20,7 @@ class ListenerApp(QtWidgets.QApplication):
 
     def __init__(self, argv, *args, **named):
         super(ListenerApp, self).__init__(argv)
+        self.AUDIO_SETTINGS_CHANGED.connect(self.on_audio_settings_changed)
         self.load_config()
         self.create_actions()
 
@@ -32,13 +34,13 @@ class ListenerApp(QtWidgets.QApplication):
         self.get_service()
         self.create_overlay()
         # self.create_microphone()
-        self.AUDIO_SETTINGS_CHANGED.connect(self.on_audio_settings_changed)
         self.on_audio_settings_changed()
 
     def cleanup(self):
         self.wanted = False
         self.quit()
 
+    @defaults.log_on_fail(log)
     def check_ibus(self):
         """Is our IBus daemon running?"""
         address = subprocess.check_output(['ibus', 'address']).decode('ascii', 'ignore')
@@ -57,6 +59,7 @@ class ListenerApp(QtWidgets.QApplication):
         else:
             log.info("IBus running at %r", address)
 
+    @defaults.log_on_fail(log)
     def load_config(self):
         """Get the application's configuration"""
         self.setOrganizationName("VRPlumber")
@@ -64,6 +67,7 @@ class ListenerApp(QtWidgets.QApplication):
         self.setApplicationName(defaults.APP_NAME_HUMAN)
         self.settings = QtCore.QSettings()
 
+    @defaults.log_on_fail(log)
     def create_systray(self):
         self.systray = systrayicon.ListenerSystrayIcon()
         self.systray.setToolTip(defaults.APP_NAME_HUMAN)
@@ -78,34 +82,17 @@ class ListenerApp(QtWidgets.QApplication):
 
         self.systray.setContextMenu(menu)
 
+    @defaults.log_on_fail(log)
     def create_microphone(self):
         """Create our microphone pipeline"""
         self.microphone = qmicrophone.Microphone(None,)
         self.microphone.on_go_live()
 
-    def check_container(self):
-        """Check if the container service is running"""
-
-    def start_pipe(self, target, *args):
-        """Create thread with our audio-pipe minder"""
-        thread = threading.Thread(target=target, args=args)
-        thread.setDaemon(True)
-        thread.start()
-
-    def run_ibus_engine(self):
-        while self.wanted:
-            command = [
-                'listener-ibus',
-                '-v',
-            ]
-            pipe = subprocess.Popen(command,)
-            self.display_status('IBus Daemon Started')
-            while pipe.poll() is None and self.wanted:
-                time.sleep(1.0)
-
+    @defaults.log_on_fail(log)
     def run_audio_pipe(self):
         log.info("Run audio pipe starting")
         while self.wanted:
+            log.info('Running audio pipe')
             try:
                 if self.audio_wanted:
                     log.info("Starting audio pipeline")
@@ -148,15 +135,19 @@ class ListenerApp(QtWidgets.QApplication):
 
         return True
 
+    @defaults.log_on_fail(log)
     def get_service(self):
         """Get a DBus proxy to our ListenerService"""
+        log.debug('Setting up ListenerService on DBUS')
         self.dbus_bus = dbus.SessionBus()
         # bus_name = dbus.BusName(defaults.DBUS_NAME, bus=self.dbus_bus)
         # self.dbus_bus.connect()
+        log.debug('DBus: %s', self.dbus_bus)
 
         remote_object = self.dbus_bus.get_object(
             defaults.DBUS_NAME, defaults.DBUS_INTERPRETER_PATH,
         )
+        log.debug('Remote: %s', remote_object)
         iface = dbus.Interface(remote_object, defaults.DBUS_NAME)
         log.info("Interface: %s", iface)
         self.dbus_bus.add_signal_receiver(
@@ -166,16 +157,19 @@ class ListenerApp(QtWidgets.QApplication):
             self.on_final_result, dbus_interface=defaults.FINAL_RESULT_EVENT,
         )
 
+    @defaults.log_on_fail(log)
     def on_partial_result(self, utterance_struct):
         """Handle a partial result utterance"""
         utterance = models.Utterance.from_dbus_struct(utterance_struct)
         # TODO: this is coming in on glib, but is it actually in the gui thread?
         self.overlay.set_text(' '.join(utterance.best_guess().words), 1000)
 
+    @defaults.log_on_fail(log)
     def on_final_result(self, utterance_struct):
         utterance = models.Utterance.from_dbus_struct(utterance_struct)
         self.overlay.set_text(' '.join(utterance.best_guess().words), 2000)
 
+    @defaults.log_on_fail(log)
     def create_overlay(self):
         window = dictationoverlay.DictationOverlay()
         window.set_text('%s dictation overlay' % (defaults.APP_NAME_SHORT))
@@ -210,22 +204,26 @@ class ListenerApp(QtWidgets.QApplication):
             callback=self.on_reposition_overlay,
         )
 
+    @defaults.log_on_fail(log)
     def on_start_listening(self, evt=None, **args):
         """Tell the service to start listening"""
         log.info("Start listening request")
         self.display_status('Start Listening...')
         self.systray.set_state('start-listening')
 
+    @defaults.log_on_fail(log)
     def on_stop_listening(self, evt=None, **args):
         """Tell the service to start listening"""
         log.info("Stop listening request")
         self.display_status('Stop Listening...')
         self.systray.set_state('stop-listening')
 
+    @defaults.log_on_fail(log)
     def on_reposition_overlay(self, evt=None, **args):
         """Ask the overlay to show without closing immediately"""
         self.overlay.show_for_reposition()
 
+    @defaults.log_on_fail(log)
     def on_audio_settings_changed(self):
         """Handle a change to our audio settings (potentially restarting audio)"""
         enabled = self.settings.value(defaults.MICROPHONE_ENABLED_KEY) or ''
@@ -244,8 +242,11 @@ class ListenerApp(QtWidgets.QApplication):
                 for device in audioview.describe_pulse_sources():
                     if device.get('description') == source:
                         name = device.get('name')
-                    else:
-                        log.info("No match on %s", device.get('description'))
+                        log.info(
+                            "Match on description: %r => %r",
+                            device.get('description'),
+                            name,
+                        )
                 if name:
                     command.extend(['-d', name])
                 else:
@@ -254,9 +255,12 @@ class ListenerApp(QtWidgets.QApplication):
                 command.extend(['--volume', str(volume)])
             self.audio_parameters = command
             self.start_audio()
+            # log.info("Audio pipeline show start running momentarily")
+            self.display_status('Audio pipeline started')
         else:
             log.info("Stopping audio pipeline")
             self.stop_audio()
+            self.display_status('Audio pipeline stopped')
 
     def start_audio(self):
         """Start audio pipeline"""
@@ -268,6 +272,7 @@ class ListenerApp(QtWidgets.QApplication):
         self.audio_wanted = False
         return False
 
+    @defaults.log_on_fail(log)
     def ensure_container(self):
         """Ensure the container is running"""
         log.info("Checking on the container...")
@@ -291,6 +296,7 @@ class ListenerApp(QtWidgets.QApplication):
         """Set our status-bar value"""
         self.main_view.status_bar.showMessage(message)
 
+    @defaults.log_on_fail(log)
     def get_container_status(self):
         """Run docker inspect to get the current container information"""
         try:
@@ -332,6 +338,8 @@ def main():
     QtGui.QIcon.setFallbackSearchPaths(icon_search_paths)
     app = ListenerApp([])
     t = threading.Thread(target=app.run_audio_pipe)
+    t.setDaemon(True)
+    t.start()
     t = threading.Thread(target=app.ensure_container)
     t.setDaemon(True)
     t.start()
