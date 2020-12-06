@@ -1,5 +1,6 @@
 """Constants and shared definitions"""
 import os, logging, pwd
+from functools import wraps
 
 
 def get_username():
@@ -63,8 +64,29 @@ MICROPHONE_VOLUME_KEY = 'audioview.volume'
 MICROPHONE_ENABLED_KEY = 'audioview.enable_audio'
 
 
-def setup_logging(options):
+def setup_logging(options, filename=None):
     logging.basicConfig(
         level=logging.DEBUG if options.verbose else logging.WARNING,
-        format='%(asctime)s:%(levelname)s:%(name)s:%(lineno)s %(message)s',
+        format='%(asctime)s:%(levelname)7s:%(name)30s:%(lineno)4s %(message)s',
+        filename=os.path.join(RUN_DIR, filename) if filename else None,
     )
+
+
+def log_on_fail(log):
+    """Decorator to log failures to the given log on function failure"""
+
+    def wrapper(function):
+        @wraps(function)
+        def with_log_on_fail(*args, **named):
+            try:
+                return function(*args, **named)
+            except Exception as err:
+                log.exception(
+                    'Failure on %s with *%s **%s', function.__name__, args, named
+                )
+                raise
+
+        return with_log_on_fail
+
+    return wrapper
+
