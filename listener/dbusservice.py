@@ -345,7 +345,7 @@ def get_options():
 
 def main():
     options = get_options().parse_args()
-    defaults.setup_logging(options)
+    defaults.setup_logging(options, filename='dbus-service.log')
     from dbus.mainloop.glib import DBusGMainLoop
 
     DBusGMainLoop(set_as_default=True)
