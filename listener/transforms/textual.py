@@ -1,5 +1,5 @@
 """Definitions of rules and targets for user rule-sets"""
-from .ruleregistry import named_rule
+from ..ruleregistry import named_rule
 
 
 @named_rule

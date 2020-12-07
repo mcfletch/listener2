@@ -1,0 +1,44 @@
+# Nato Phonetic rules for non-punctuation characters
+# Note: these should not be included in general contexts
+alpha => ^'a'^
+alfa => ^'a'^
+bravo => ^'b'^
+beta => ^'b'^
+charlie => ^'c'^
+delta => ^'d'^
+echo => ^'e'^
+foxtrot => ^'f'^
+golf => ^'g'^
+gamma => ^'g'^
+hotel => ^'h'^
+india => ^'i'^
+juliett => ^'j'^
+kilo => ^'k'^
+lima => ^'l'^
+mike => ^'m'^
+november => ^'n'^
+oscar => ^'o'^
+papa => ^'p'^
+quebec => ^'q'^
+romeo => ^'r'^
+sierra => ^'s'^
+tango => ^'t'^
+uniform => ^'u'^
+victor => ^'v'^
+whiskey => ^'w'^
+x => ^'x'^
+yankee => ^'y'^
+zulu => ^'z'^
+
+zero => ^'0'^
+one => ^'1'^
+two => ^'2'^
+three => ^'3'^
+four => ^'4'^
+five => ^'5'^
+six => ^'6'^
+seven => ^'7'^
+eight => ^'8'^
+nine => ^'9'^
+hundred => ^'00'^
+thousand => ^'000'^

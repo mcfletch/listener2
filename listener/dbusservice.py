@@ -155,7 +155,7 @@ class ListenerService(dbus.service.Object):
     )
     def GetAll(self, interface_name):
         """Set all properties via introspection api"""
-        if interface_name == DBUS_NAME:
+        if interface_name == self.DBUS_NAME:
             return {
                 'current_context_name': self.current_context_name,
                 'current_context': self.current_context,
@@ -173,7 +173,7 @@ class ListenerService(dbus.service.Object):
     )
     def Set(self, interface_name, property_name, value):
         """Set the property via introspection api"""
-        if interface_name == DBUS_NAME:
+        if interface_name == self.DBUS_NAME:
             if property_name == 'current_context_name':
                 self.set_context(value)
                 return value

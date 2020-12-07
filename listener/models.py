@@ -53,7 +53,14 @@ class AppState(pydantic.BaseModel):
 
 
 class Rule(pydantic.BaseModel):
-    """Represents a single (user defined) rule for interpreting dictation"""
+    """Represents a single (user defined) rule for interpreting dictation
+    
+    Special fragments in the match can match against  wildcard
+    values such as a single or multiple word fragment.
+
+        defaults.PHRASE_MARKER
+        defaults.WORD_MARKER
+    """
 
     match: List[str] = []
     target: str = ''  # textual definition of the target
@@ -63,6 +70,7 @@ class Rule(pydantic.BaseModel):
     caps_after: bool = False
     process: List[Callable] = [null_transform]
     source: str = ''
+    boost: float = 1.0
 
     def format(self):
         """Format as content for a textual rules-file"""
@@ -71,13 +79,25 @@ class Rule(pydantic.BaseModel):
     def __str__(self):
         return self.format()
 
+    def __hash__(self):
+        return hash(
+            (tuple(self.match), self.target, self.no_space_after, self.no_space_before)
+        )
+
     def __call__(self, *args, **named):
         """Call our processing function"""
         try:
-            return self.process[0](*args, **named)
+            target = self.process[0]
+            return target(*args, **named)
         except Exception as err:
             err.args += (self,)
             raise
+
+    def boost_words(self):
+        """Calculate the set of words that should be boosted in frequency"""
+        for fragment in self.match:
+            if fragment not in [defaults.WORD_MARKER, defaults.PHRASE_MARKER]:
+                yield fragment, self.boost
 
 
 class Transcript(pydantic.BaseModel):
@@ -213,6 +233,7 @@ class ContextDefinition(pydantic.BaseModel):
     name: str = ''
     scorers: List[ScorerDefinition] = []
     rules: str = 'default'
+    only_matches: bool = False
 
     @classmethod
     def context_names(cls):
@@ -261,15 +282,33 @@ class ContextDefinition(pydantic.BaseModel):
             rules='default',
         )
         default.save()
-        default = ContextDefinition(
-            name='english-upstream',
+        # default = ContextDefinition(
+        #     name='english-upstream',
+        #     scorers=[
+        #         ScorerDefinition.by_name('upstream'),
+        #         ScorerDefinition(name='commands', type='commands',),
+        #     ],
+        #     rules='default',
+        # )
+        # default.save()
+        stopped = ContextDefinition(
+            name='english-stopped',
             scorers=[
-                ScorerDefinition.by_name('upstream'),
+                ScorerDefinition.by_name('default'),
                 ScorerDefinition(name='commands', type='commands',),
             ],
-            rules='default',
+            rules='stopped',
         )
-        default.save()
+        stopped.save()
+        spelling = ContextDefinition(
+            name='english-spelling',
+            scorers=[
+                ScorerDefinition.by_name('default'),
+                ScorerDefinition(name='commands', type='commands',),
+            ],
+            rules='spelling',
+        )
+        spelling.save()
 
     @classmethod
     def directory(cls, name):
@@ -290,7 +329,8 @@ class ContextDefinition(pydantic.BaseModel):
         """Load configuration from the named file"""
         filename = cls.config_file(name)
         if os.path.exists(filename):
-            config = cls(**json.loads(open(filename).read()))
+            content = json.loads(open(filename).read())
+            config = cls(**content)
             if config.name != name:
                 log.warning("Config stored in %s is named %s", name, config.name)
                 config.name = name
@@ -308,10 +348,16 @@ class ContextDefinition(pydantic.BaseModel):
 
 
 class Context(pydantic.BaseModel):
-    """Base class for live context instances"""
+    """Base class for live context instances
+    
+    The class in the context module  does most of the  heavy lifting
+    as the rules are loaded dynamically from disk  and the calculation of 
+    dependent data generally relies on the dynamic rules.
+    """
 
     name: str = ''
     config: ContextDefinition = None
+    hotwords: dict = {}
 
 
 def atomic_write(filename, content):
@@ -415,13 +461,15 @@ def iter_matches(words, rules):
             )
 
 
-def match_rules(words, rules):
+def match_rules(words, rules, seen=None, start=0):
     """Find rules which match in the rules"""
+    seen = seen or set()
 
-    for start in range(len(words)):
+    for start in range(start, len(words)):
         branch = rules
         var_phrase = None
         var_words = []
+        i = 0
         for i, word in enumerate(words[start:]):
             if word in branch:
                 branch = branch[word]
@@ -431,7 +479,8 @@ def match_rules(words, rules):
             elif branch is not rules and defaults.PHRASE_MARKER in branch:
                 branch = branch[defaults.PHRASE_MARKER]
                 var_phrase = words[i:]
-                i = len(words) - start
+                # we are pointing at the first word, advance to the last word in phrase...
+                i += len(var_phrase) - 1
                 break
             else:
                 # we don't match any further rules, do we
@@ -440,9 +489,13 @@ def match_rules(words, rules):
                 break
         if None in branch:  # a rule stops at this point
             rule = branch[None]
+            if (i, rule) in seen:
+                log.info("Already ran rule %s at %s", rule, i)
+                continue
+            seen.add((i, rule))
             return RuleMatch(
                 rule=rule,
-                words=words[:],
+                words=words[start : start + i + 1],
                 start_index=start,
                 stop_index=start + i + 1,
                 var_words=var_words,
@@ -450,32 +503,81 @@ def match_rules(words, rules):
             )
 
 
-def apply_rules(transcript, rules, context=None, match_bias=0.5, commit=False):
-    """Iteratively apply rules from rule-set until nothing changes"""
-    for i in range(20):
-        working = transcript.words[:]
-        match = match_rules(working, rules)
-        if match:
+def compress_no_spaces(working):
+    result = []
+    seen = False
+    for item in working:
+        if item == '^':
+            if seen:
+                continue
+            else:
+                seen = True
+        else:
+            seen = False
+        result.append(item)
+    return result
 
+
+def apply_rules(
+    transcript,
+    rules,
+    context=None,
+    match_bias=0.25,
+    commit=False,
+    event=None,
+    interpreter=None,
+    command_only=False,
+):
+    """Iteratively apply rules from rule-set until nothing changes"""
+    match_set = set()
+    working = transcript.words[:]
+    log.info("Working: %s", working)
+    # import pdb
+
+    # pdb.set_trace()
+    for iteration in range(20):
+        log.info("Iteration: %s", iteration)
+        matches = 0
+        match = match_rules(working, rules, match_set)
+        while match and match.stop_index <= len(working):
+            matches += 1
             match.transcript = transcript
             match.context = context
             match.commit = commit
             transcript.rule_matches = transcript.rule_matches + [match]
 
+            log.info("Match: %s", match.words)
+
             transcript.confidence += match_bias
-            new_working = match.rule(match)
+            rest = working[match.stop_index :]
+            log.info("Remaining: %s", rest)
+            try:
+                transformed = match.rule(match, interpreter=interpreter, event=event)
+                log.info(
+                    "Transform %s => %s with %s",
+                    working[match.start_index : match.stop_index],
+                    transformed,
+                    match.rule,
+                )
+                working[match.start_index : match.stop_index] = transformed
+            except StopIteration as err:
+                # Immediate return...
+                log.info("Command: %s", working[match.start_index : match.stop_index])
+                del working[match.start_index : match.stop_index]
 
-            if new_working == working:
-                # didn't change the output, avoid re-processing
-                log.debug("%s did not modify the input %s", match.rule, match.words)
+            if rest:
+                match = match_rules(
+                    working, rules, match_set, start=len(working) - len(rest),
+                )
+            else:
+                log.info('Reached end')
+                match = None
                 break
-            log.debug(" => %s (%s)", new_working, match.rule.match)
-            working = new_working
-
-            transcript.words = working
-        else:
+        if not matches:
             break
-    return working
+        else:
+            transcript.confidence += match_bias * matches
+    return compress_no_spaces(working)
 
 
 def words_to_text(words):

@@ -1,0 +1,15 @@
+# Context/rules for typing out values
+
+spell off => restore_context()
+stop spelling => restore_context()
+spelling off => restore_context()
+type stop => restore_context()
+type off => restore_context()
+
+#include natophonetic
+#include talonish
+
+#include punctuation
+#include numbers
+#include case
+#include rawchars

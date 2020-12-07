@@ -1,9 +1,9 @@
 """Load rules from rule-sets on disk"""
-import logging, os, ast
+import logging, os, ast, re
 from .ruleregistry import rule_by_name
 from .errors import MissingRules
 from . import defaults
-from . import transforms
+from .transforms import textual, commands
 from .models import Rule, null_transform
 from .defaults import PHRASE_MARKER, WORD_MARKER
 
@@ -17,6 +17,27 @@ log = logging.getLogger(__name__)
 
 # TODO: allow for plugins that define their own transforms
 # and actions...
+
+BOOST_MATCH = re.compile(r'[+-]\d+$')
+
+
+def wanted_args(target, args, kwargs):
+    # Only pass optional arguments that are required...
+    clean_named = {}
+    code = target.__code__
+    for key in code.co_varnames[len(args) : code.co_argcount]:
+        clean_named[key] = kwargs.get(key)
+    return args, clean_named
+
+
+def split_boost(target):
+    """Split out the boost declaration if present"""
+    match = BOOST_MATCH.search(target)
+    if match:
+        text = match.group(0)
+        boost = float(text)
+        return target[: -len(text)].strip(), boost
+    return target, 1
 
 
 def bad_text_types(text):
@@ -40,7 +61,7 @@ def text_entry_rule(match, target):
             "Expect python-literal syntax for unicode, bytes, list-of-unicode or tuple of unicode",
         )
 
-    def apply_rule(match):
+    def apply_rule(match, **kwargs):
         """Given a match on the rule, produce modified result"""
         match = match.copy()
         result = []
@@ -54,7 +75,7 @@ def text_entry_rule(match, target):
             raise TypeError()
         if no_space_after:
             result.append('^')
-        return match.prefix + result + match.suffix
+        return result
 
     return Rule(
         match=match,
@@ -81,14 +102,27 @@ def transform_rule(match, target):
     phrase = match[-1] == PHRASE_MARKER
     word = match[-1] == WORD_MARKER
 
-    def apply_rule(match):
+    def apply_rule(match, **kwargs):
         """Given a match, transform and return the results"""
         if phrase:
-            result = transformation(match.var_phrase)
+            args = (match.var_phrase,)
+        elif word:
+            args = (match.var_words,)
         else:
-            result = transformation(match.var_words)
+            args = (match.words,)
+        if transformation:
+            args, named = wanted_args(transformation, args, kwargs)
+            log.info(
+                "Calling plugin %s from %s:%s",
+                transformation.__name__,
+                transformation.__module__,
+                transformation.__code__.co_firstlineno,
+            )
+            result = transformation(*args, **named)
+        else:
+            result = match.words
 
-        return match.prefix + result + match.suffix
+        return result
 
     return Rule(
         match=match,
@@ -140,6 +174,23 @@ def iter_rules(name, includes=True):
     
     yields pattern, target, source-name for each rule in the
     user's rule-sets
+
+    Directives:
+
+        #include <filename>
+        # comment ignored
+
+        word word => ^'otherword'^ +2
+        word word => 'otherword'^ +2
+        word word => 'otherword' +2
+        word word => 'otherword'
+        word word => ^somefunction()^ +3
+    
+    ^ indicates that spaces should be suppressed before/after the result
+    where by default they are added.
+
+    +int adds the words in the rule to the "boost" set (hotwords) so that 
+    their presence will tend to favour processing of the given rule.
     """
     filename = named_ruleset_file(name)
     if filename:
@@ -149,13 +200,15 @@ def iter_rules(name, includes=True):
             if line.startswith('#include '):
                 if includes:
                     try:
-                        for pattern, target, sub_name in iter_rules(line[9:].strip()):
+                        for pattern, target, sub_name in iter_rules(
+                            line[9:].strip().strip("'\"")
+                        ):
                             yield pattern, target, sub_name
                     except MissingRules as err:
                         err.args += ('included from %s#%i' % (name, i + 1),)
                         raise
                 else:
-                    log.info("Includes disabeld, ignoring: %s", line)
+                    log.info("Includes disabled, ignoring: %s", line)
             if (not line) or line.startswith('#'):
                 continue
             try:
@@ -171,18 +224,22 @@ def iter_rules(name, includes=True):
 
 def load_rules(name, rules=None, includes=True):
     """load a set of commands from a named rule-set"""
+    base_name = name
     rules = rules or {}
     rule_order = []
     for pattern, target, name in iter_rules(name, includes=True):
+        target, boost = split_boost(target)
         branch = rules
         for word in pattern:
             branch = branch.setdefault(word, {})
+
         if target.strip('^').endswith('()'):
             rule = transform_rule(pattern, target[:-2])
         else:
             rule = text_entry_rule(pattern, target)
         branch[None] = rule
         rule.source = name
+        rule.boost = boost
         rule_order.append(rule)
-        log.debug("Rule: %s", rule)
+        log.debug("Rule from %s: %s", base_name, rule)
     return rules, rule_order

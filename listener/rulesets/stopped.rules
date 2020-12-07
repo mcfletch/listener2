@@ -1,0 +1,6 @@
+# Rules which are active during 'stop listening' state...
+start listening => start_listening()
+wake up => start_listening()
+computer wake up => start_listening()
+listener start => start_listening()
+start listener => start_listening()

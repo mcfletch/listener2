@@ -20,7 +20,23 @@ def list_in_list(search, env):
     return False
 
 
+class FakeInterpreter(object):
+    context = None
+
+    def set_context(self, name):
+        self.context = name
+
+    def stop_listening(self):
+        self.context = defaults.STOPPED_CONTEXT
+
+    def start_listening(self):
+        self.context = defaults.DEFAULT_CONTEXT
+
+
 class TestInterpreter(unittest.TestCase):
+    def setUp(self):
+        self.interpreter = FakeInterpreter()
+
     def test_loading(self):
         rules, ruleset = ruleloader.load_rules('default')
         assert rules
@@ -40,22 +56,26 @@ class TestInterpreter(unittest.TestCase):
             match = models.match_rules(words, rules)
             assert match
             assert match.rule == rule
-            result = match.rule(match)
-            if match.rule.text:
-                assert list_in_list(match.rule.text, result), result
-            if match.rule.no_space_after:
-                assert result[-1] == '^', result
-            if match.rule.no_space_before:
-                assert result[0] == '^', result
+            try:
+                result = match.rule(match, interpreter=self.interpreter)
+            except StopIteration:
+                pass
+            else:
+                if match.rule.text:
+                    assert list_in_list(match.rule.text, result), result
+                if match.rule.no_space_after:
+                    assert result[-1] == '^', result
+                if match.rule.no_space_before:
+                    assert result[0] == '^', result
 
     def test_apply_rules(self):
-        rules, ruleset = ruleloader.load_rules('default')
+        rules, ruleset = ruleloader.load_rules('code')
         for spoken, expected in [
-            ('close the file period', ' close the file. ',),
-            ('open parenthesis this comma that', ' (this, that ',),
-            ('no space this', 'this ',),
-            ('close bracket no space', ']',),
-            ('open triple quote', ' """',),
+            # ('close the file period', ' close the file. ',),
+            # ('open parenthesis this comma that', ' (this, that ',),
+            # ('no space this', 'this ',),
+            # ('close bracket no space', ']',),
+            # ('open triple quote', ' """',),
             ('constant current position', 'CURRENT_POSITION',),
             ('all caps hello there', " HELLO THERE ",),
             ('camel case forgotten dog', ' ForgottenDog ',),
@@ -63,7 +83,7 @@ class TestInterpreter(unittest.TestCase):
         ]:
             transcript = models.Transcript(words=spoken.split(' '), confidence=0,)
             words = models.apply_rules(transcript, rules, commit=False)
-            assert transcript.confidence > 0, transcript.confidence
+            assert transcript.confidence > 0, (spoken, transcript.confidence)
             result = models.words_to_text(words)
             assert result == expected, (spoken, result)
 
@@ -75,6 +95,36 @@ class TestInterpreter(unittest.TestCase):
         result = core.apply_rules(JUNK_UTTERANCE.copy())
         assert result.transcripts
         assert result.transcripts[0].text == '', 'Did not recognise a junk utterance'
+
+    def test_spelling(self):
+        core = interpreter.Context.by_name('english-spelling')
+        utt = models.Utterance(
+            partial=False,
+            final=True,
+            transcripts=[
+                models.Transcript(
+                    partial=False,
+                    final=True,
+                    words=['a', 'b', 'c', 'd'],
+                    tokens=['a', 'b', 'c', 'd'],
+                    starts=[0, 1, 2, 3],
+                    word_starts=[0, 1, 2, 3],
+                    confidence=1.178935170173645,
+                ),
+            ],
+        )
+        result = core.apply_rules(utt, interpreter=self.interpreter)
+        assert result.transcripts[0].words == [
+            '^',
+            'a',
+            '^',
+            'b',
+            '^',
+            'c',
+            '^',
+            'd',
+            '^',
+        ], result.transcripts[0].words
 
 
 JUNK_UTTERANCE = utt = models.Utterance(

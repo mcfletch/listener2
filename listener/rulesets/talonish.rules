@@ -1,0 +1,34 @@
+# Phonetic typing style loosely matching what Talon users expect...
+air => ^'a'^
+bat => ^'b'^
+cap => ^'c'^
+drum => ^'d'^
+dust => ^'d'^
+each  => ^'e'^
+fine => ^'f'^
+gust => ^'g'^
+harp => ^'h'^
+idle => ^'i'^
+sit => ^'i'^
+jury => ^'j'^
+kind => ^'k'^
+crunch => ^'k'^
+look => ^'l'^
+made => ^'m'^
+near => ^'n'^
+odd => ^'o'^
+pit  => ^'p'^
+quench => ^'q'^
+red => ^'r'^
+sun => ^'s'^
+sam => ^'s'^
+trap => ^'t'^
+urge => ^'u'^
+vest => ^'v'^
+whale => ^'w'^
+xeno => ^'x'^
+plex => ^'x'^
+yank => ^'y'^
+zip  => ^'z'^
+slap => ^' '^
+

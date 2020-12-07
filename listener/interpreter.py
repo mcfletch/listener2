@@ -1,6 +1,6 @@
 """Provide for the interpretation of incoming utterances based on user provided rules
 """
-import re, logging, os, json
+import re, logging, os, json, typing
 from . import defaults, ruleloader, models, eventreceiver
 from .context import Context
 import pydantic
@@ -38,7 +38,7 @@ def get_options():
     )
     parser.add_argument(
         '--context',
-        default='english-general',
+        default=defaults.DEFAULT_CONTEXT,
         choices=sorted(models.ContextDefinition.context_names()),
         help='Context in which to start processing',
     )
@@ -46,16 +46,30 @@ def get_options():
 
 
 class Interpreter(pydantic.BaseModel):
-    current_context_name: str = 'english-python'
+    """Class responsible for interpreting the results of the  dictation in order to apply rules and boosting"""
+
+    current_context_name: str = defaults.DEFAULT_CONTEXT
+    stopped_context_names: typing.List[str] = []
     active: bool = True
     current_context: Context = None
     sockname: str = defaults.RAW_EVENTS
     connect_backoff: float = 2.0
 
+    def __str__(self):
+        return '%s(current_context_name=%r)' % (
+            self.__class__.__name__,
+            self.current_context_name,
+        )
+
     def set_context(self, name):
         """Reload our currently configured context"""
-        context = self.current_context = Context.by_name(self.current_context_name)
-        self.current_context_name = name
+        log.info("Switching context to %s", name)
+        try:
+            context = self.current_context = Context.by_name(name)
+            self.current_context_name = name
+        except Exception as err:
+            log.error("Cannot set the dictation context to: %r", name)
+            return self.current_context
         return context
 
     def run(self, result_queue):
@@ -73,7 +87,9 @@ class Interpreter(pydantic.BaseModel):
                 # the pop
                 if event.transcripts[0].words in ([], [''], ['he']):
                     continue
-                result_queue.put(self.process_event(context, event))
+                # Note that this is not  necessarily the context above as we can switch
+                #  between context based on the  output of a given command
+                result_queue.put(self.process_event(self.current_context, event))
             elif event.partial:
                 result_queue.put(event)
             else:
@@ -87,10 +103,46 @@ class Interpreter(pydantic.BaseModel):
         context.score(event)
         for t in event.transcripts:
             log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
-        event = context.apply_rules(event)
+        event = context.apply_rules(event, interpreter=self)
         best_guess = event.best_guess()
         log.info('    ==> %s', event.best_guess().words)
         return event
+
+    def temp_context(self, name):
+        log.info(
+            "Save current context: %s going to %s", self.current_context_name, name
+        )
+        self.stopped_context_names.append(self.current_context_name)
+        self.set_context(name)
+        return []
+
+    def restore_context(self):
+        """Return to the last-pushed context"""
+        if self.stopped_context_names:
+            name = self.stopped_context_names.pop()
+            log.info("Restoring context: %s", name)
+            self.set_context(name)
+        else:
+            log.error("No temporary context is active")
+        return []
+
+    def stop_listening(self):
+        """Switch to the stopped context (no typing)"""
+        return self.temp_context(defaults.STOPPED_CONTEXT)
+
+    def start_listening(self):
+        log.info(
+            "Context: start listening while in context %s", self.current_context_name
+        )
+        return self.restore_context()
+
+    def start_spelling(self):
+        """Start the phonetic spelling context"""
+        return self.temp_context(defaults.SPELLING_CONTEXT)
+
+    def stop_spelling(self):
+        """Stop the spelling context"""
+        return self.restore_context()
 
 
 def main():

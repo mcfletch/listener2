@@ -1,30 +1,22 @@
 # Commonly mis-heard code names...
-colin new line => 'colon','new','line'
-colan new line => 'colon','new','line'
-harow => 'arrow'
-hero => 'arrow'
-herro => 'arrow'
+colon new line => ^':\n'
 jason => 'json'
-name jason => "jason"
+name jason => "Jason"
 h t m l => 'html'
 h te m l => 'html'
 h t hm l => 'html'
 cutie => 'Qt'
 caps came all => 'caps','camel'
 
-dunder in it => 'dunder','init'
-thunder in it => 'dunder','init'
-thunder main => 'dunder','main'
+in it => 'init'
 
 get diff => 'git','diff'
 get push => 'git','push'
 
-for loop => 'for '^
 spell number for => 'four '^
 spell spell => 'spell '^
 spell number two => 'two '^
 spell t o => 'to '^
-
 
 not equal => '!='
 double equal => '=='

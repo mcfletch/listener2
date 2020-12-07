@@ -26,7 +26,12 @@ def create_client_socket(sockname):
     try:
         sock.connect(sockname)
     except (Exception) as err:
-        log.warning("Failure connecting to: %s", sockname)
+        log.warning(
+            "Failure connecting to: %s (which %s)",
+            sockname,
+            'exists' if os.path.exists(sockname) else 'does not exist',
+        )
+
         err.args += (sockname,)
         raise
     return sock

@@ -69,6 +69,7 @@ open triple quote => '"""'^
 close triple quote => ^'"""'
 triple start quote => '"""'^
 triple end quote => ^'"""'
+triple quote => ^'"""'^
 ampersand character => "&"
 ampersand symbol => "&"
 and character => '&'
@@ -114,4 +115,3 @@ open brace => ^'{'^
 close brace => ^'}'^
 tilde => '~'^
 apostrophe => ^"'"^
-

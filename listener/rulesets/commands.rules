@@ -1,11 +1,20 @@
 # Listener control commands
 
-#set-context ${word} => context()
-#stop-listening => stop_listening()
-#start-listening => start_listening()
-#go-to-sleep => stop_listening()
-#wake-up => start_listening()
-#shut-down => shutdown()
+switch context ${word} => set_context()
+set context ${word} => set_context()
+
+stop listening => stop_listening()
+computer stop listening => stop_listening()
+go to sleep => stop_listening()
+computer go to sleep => stop_listening()
+
+start spelling => start_spelling()
+start spell => start_spelling()
+spell on => start_spelling()
+spelling on => start_spelling()
+type out => start_spelling()
+
+# spell out ${phrase} => start_spelling()
 
 #spell-that => correction()
 #fix-that => correction()

@@ -63,6 +63,10 @@ MICROPHONE_PREFERENCE_KEY = 'audioview.microphone'
 MICROPHONE_VOLUME_KEY = 'audioview.volume'
 MICROPHONE_ENABLED_KEY = 'audioview.enable_audio'
 
+DEFAULT_CONTEXT = 'english-python'
+STOPPED_CONTEXT = 'english-stopped'
+SPELLING_CONTEXT = 'english-spelling'
+
 
 def setup_logging(options, filename=None):
     logging.basicConfig(

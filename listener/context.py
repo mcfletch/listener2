@@ -1,5 +1,5 @@
 import re, logging, os, json
-import pydantic
+import pydantic, typing
 from . import defaults, ruleloader, models
 from . import kenlmscorer, commandscorer
 
@@ -26,8 +26,24 @@ class Context(models.Context):
 
     @models.justonce_property
     def loaded_rules(self):
-        """ Load the rules from disk and compile them into a matching table"""
+        """Load the rules from disk and compile them into a matching table"""
+        log.info("Loading rules for context %r from %r", self.name, self.config.rules)
         return ruleloader.load_rules(self.config.rules)
+
+    @models.justonce_property
+    def boosts(self):
+        """Calculate the initial boosts values from our rules"""
+        initial = {}
+        rules = self.rule_set
+        for rule in rules:
+            for boost_word, boost in rule.boost_words():
+                initial[boost_word] = max((initial.get(boost_word, 0), boost))
+        return initial
+
+    def add_hotwords(self, boosts: typing.Dict[str, float]):
+        """Add to the boosts for hotwords on context scoring"""
+        self.hotwords.update(boosts)
+        return self.hotwords
 
     @property
     def rules(self):
@@ -61,9 +77,22 @@ class Context(models.Context):
             # Show scores and n-gram matches
             log.debug("Score with %s", scorer.definition.name)
             scorer.score(event)
+
+        for transcript in event.transcripts:
+            boost = 0
+            for word in transcript.words:
+                for boosts in (self.boosts, self.hotwords):
+                    boost += boosts.get(word, 0)
+            if boost:
+                log.debug('Boosting confidence on %s by %s', transcript.words, boost)
+            transcript.confidence += boost
+
         event.sort()
 
-    def apply_rules(self, event: models.Utterance):
+    def apply_hotwords(self, event: models.Utterance, max_count: int = 20):
+        """Apply simple boost based on matching hot words"""
+
+    def apply_rules(self, event: models.Utterance, interpreter=None):
         """Search for key-words in the event transcripts, apply bias to commands
         
         event -- utterance being processed, having already been scored such that
@@ -71,11 +100,18 @@ class Context(models.Context):
         
         """
         rules = self.rules
-        for transcript in event.transcripts:
+        for transcript in event.transcripts[:5]:
             original = transcript.words[:]
-            new_words = models.apply_rules(transcript, rules)
+            new_words = models.apply_rules(
+                transcript,
+                rules,
+                interpreter=interpreter,
+                event=event,
+                context=self,
+                command_only=self.name == defaults.STOPPED_CONTEXT,
+            )
             if new_words != original:
                 transcript.words = new_words
                 transcript.text = models.words_to_text(new_words)
-            break
+
         return event
