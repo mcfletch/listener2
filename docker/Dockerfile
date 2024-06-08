@@ -22,7 +22,7 @@ RUN pip3 install -I setuptools wheel pip
 # from the (tiny) deepspeech install
 RUN pip3 install tensorflow-gpu 
 # Pull in current DeepSpeech release
-ARG DEEPSPEECH_VERSION=0.9.2
+ARG DEEPSPEECH_VERSION=0.9.3
 ENV DEEPSPEECH_VERSION=${DEEPSPEECH_VERSION}
 RUN pip3 install "DeepSpeech==${DEEPSPEECH_VERSION}" webrtcvad ipython ipdb
 # Create user with username and password `deepspeech` matching the running

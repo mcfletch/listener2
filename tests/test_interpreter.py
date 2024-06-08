@@ -98,33 +98,30 @@ class TestInterpreter(unittest.TestCase):
 
     def test_spelling(self):
         core = interpreter.Context.by_name('english-spelling')
-        utt = models.Utterance(
-            partial=False,
-            final=True,
-            transcripts=[
-                models.Transcript(
-                    partial=False,
-                    final=True,
-                    words=['a', 'b', 'c', 'd'],
-                    tokens=['a', 'b', 'c', 'd'],
-                    starts=[0, 1, 2, 3],
-                    word_starts=[0, 1, 2, 3],
-                    confidence=1.178935170173645,
-                ),
-            ],
-        )
-        result = core.apply_rules(utt, interpreter=self.interpreter)
-        assert result.transcripts[0].words == [
-            '^',
-            'a',
-            '^',
-            'b',
-            '^',
-            'c',
-            '^',
-            'd',
-            '^',
-        ], result.transcripts[0].words
+        for spoken, expected in [
+            (['a', 'b', 'c', 'd'], ['^', 'a', '^', 'b', '^', 'c', '^', 'd', '^',])
+        ]:
+
+            utt = models.Utterance(
+                partial=False,
+                final=True,
+                transcripts=[
+                    models.Transcript(
+                        partial=False,
+                        final=True,
+                        words=spoken,
+                        tokens=spoken,
+                        starts=list(range(len(spoken))),
+                        word_starts=list(range(len(spoken))),
+                        confidence=1.178935170173645,
+                    ),
+                ],
+            )
+            result = core.apply_rules(utt, interpreter=self.interpreter)
+            assert result.transcripts[0].words == expected, (
+                spoken,
+                result.transcripts[0].words,
+            )
 
 
 JUNK_UTTERANCE = utt = models.Utterance(

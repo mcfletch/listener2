@@ -244,7 +244,7 @@ def get_options():
         '-m',
         '--model',
         default='/src/model/deepspeech-%s-models.pbmm'
-        % os.environ.get('DEEPSPEECH_VERSION', '0.9.2'),
+        % os.environ.get('DEEPSPEECH_VERSION', '0.9.3'),
         help='DeepSpeech published model',
     )
     parser.add_argument(

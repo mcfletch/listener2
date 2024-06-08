@@ -112,7 +112,7 @@ def transform_rule(match, target):
             args = (match.words,)
         if transformation:
             args, named = wanted_args(transformation, args, kwargs)
-            log.info(
+            log.debug(
                 "Calling plugin %s from %s:%s",
                 transformation.__name__,
                 transformation.__module__,

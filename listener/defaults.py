@@ -29,7 +29,7 @@ CONTEXT_DIR = os.path.join(CONFIG_DIR, 'contexts')
 
 CACHE_DIR = os.path.join(USER_CACHE_DIR, APP_NAME)
 MODEL_CACHE = os.path.join(CACHE_DIR, 'model')
-DEFAULT_DEEPSPEECH_VERSION = '0.9.2'
+DEFAULT_DEEPSPEECH_VERSION = '0.9.3'
 RELEASE_URL = 'https://github.com/mozilla/DeepSpeech/releases/download/v%(version)s/'
 MODEL_FILE = 'deepspeech-%(version)s-models.pbmm'
 SCORER_FILE = 'deepspeech-%(version)s-models.scorer'

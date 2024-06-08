@@ -25,7 +25,7 @@ class CommandScorer(pydantic.BaseModel):
 
     def score(self, utterance: models.Utterance):
         """Score the utterance (adds to base confidence if matches a command)"""
-        log.info("Applying command score with %s rules", len(self.context.rules))
+        log.debug("Applying command score with %s rules", len(self.context.rules))
         for transcript in utterance.transcripts:
             if transcript.confidence > -30:
                 log.debug(

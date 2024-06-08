@@ -504,6 +504,7 @@ def match_rules(words, rules, seen=None, start=0):
 
 
 def compress_no_spaces(working):
+    """Compress out no space markers"""
     result = []
     seen = False
     for item in working:
@@ -531,13 +532,11 @@ def apply_rules(
     """Iteratively apply rules from rule-set until nothing changes"""
     match_set = set()
     working = transcript.words[:]
-    log.info("Working: %s", working)
-    # import pdb
-
-    # pdb.set_trace()
+    # log.info("Working: %s", working)
     for iteration in range(20):
-        log.info("Iteration: %s", iteration)
+        # log.info("Iteration: %s", iteration)
         matches = 0
+        starting = working[:]
         match = match_rules(working, rules, match_set)
         while match and match.stop_index <= len(working):
             matches += 1
@@ -546,23 +545,23 @@ def apply_rules(
             match.commit = commit
             transcript.rule_matches = transcript.rule_matches + [match]
 
-            log.info("Match: %s", match.words)
+            # log.info("Match: %s", match.words)
 
             transcript.confidence += match_bias
             rest = working[match.stop_index :]
-            log.info("Remaining: %s", rest)
+            # log.info("Remaining: %s", rest)
             try:
                 transformed = match.rule(match, interpreter=interpreter, event=event)
-                log.info(
-                    "Transform %s => %s with %s",
-                    working[match.start_index : match.stop_index],
-                    transformed,
-                    match.rule,
-                )
+                # log.info(
+                #     "Transform %s => %s with %s",
+                #     working[match.start_index : match.stop_index],
+                #     transformed,
+                #     match.rule,
+                # )
                 working[match.start_index : match.stop_index] = transformed
             except StopIteration as err:
                 # Immediate return...
-                log.info("Command: %s", working[match.start_index : match.stop_index])
+                # log.info("Command: %s", working[match.start_index : match.stop_index])
                 del working[match.start_index : match.stop_index]
 
             if rest:
@@ -570,14 +569,14 @@ def apply_rules(
                     working, rules, match_set, start=len(working) - len(rest),
                 )
             else:
-                log.info('Reached end')
+                # log.info('Reached end')
                 match = None
                 break
-        if not matches:
+        transcript.confidence += match_bias * matches
+        working = compress_no_spaces(working)
+        if working == starting:
             break
-        else:
-            transcript.confidence += match_bias * matches
-    return compress_no_spaces(working)
+    return working
 
 
 def words_to_text(words):

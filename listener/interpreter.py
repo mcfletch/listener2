@@ -102,7 +102,7 @@ class Interpreter(pydantic.BaseModel):
         """
         context.score(event)
         for t in event.transcripts:
-            log.info('%8s: %s', '%0.1f' % t.confidence, t.words)
+            log.debug('%8s: %s', '%0.1f' % t.confidence, t.words)
         event = context.apply_rules(event, interpreter=self)
         best_guess = event.best_guess()
         log.info('    ==> %s', event.best_guess().words)
